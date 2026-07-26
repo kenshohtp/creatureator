@@ -1,0 +1,39 @@
+{
+  "id": "creatureator",
+  "title": "Creatureator",
+  "description": "Build custom Pathfinder 2e creatures by taking a bestiary creature as a chassis, rescaling it to any level against the GM Core Building Creatures tables, and grafting on abilities from your compendia or the Archives of Nethys.",
+  "version": "0.1.0",
+  "authors": [
+    {
+      "name": "kenshohtp"
+    }
+  ],
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14.365"
+  },
+  "relationships": {
+    "systems": [
+      {
+        "id": "pf2e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "8.2.0",
+          "verified": "8.2.0"
+        }
+      }
+    ]
+  },
+  "esmodules": ["scripts/creatureator.js"],
+  "styles": ["styles/creatureator.css"],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "url": "https://github.com/kenshohtp/creatureator",
+  "manifest": "https://github.com/kenshohtp/creatureator/releases/latest/download/module.json",
+  "download": "https://github.com/kenshohtp/creatureator/releases/latest/download/module.zip"
+}
