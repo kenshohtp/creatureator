@@ -1,0 +1,97 @@
+{
+  "_comment": "Trimmed from a real actor.toObject() dump of Husk Zombie in pf2e.book-of-the-dead-bestiary, PF2e 8.3.0 / Foundry core 14.361, captured 2026-07-26. Values are verbatim; unrelated fields (descriptions, images, rule elements, publication data) removed for readability. Used to pin the NPC mapping against reality rather than assumption.",
+  "name": "Husk Zombie",
+  "type": "npc",
+  "system": {
+    "details": { "level": { "value": 2 } },
+    "attributes": {
+      "hp": { "value": 55, "temp": 0, "max": 55, "details": "void healing" },
+      "ac": { "value": 17, "details": "" },
+      "allSaves": { "value": "" },
+      "speed": { "value": 25, "otherSpeeds": [], "details": "", "special": "" },
+      "immunities": [
+        { "type": "bleed" },
+        { "type": "death-effects" },
+        { "type": "disease" },
+        { "type": "paralyzed" },
+        { "type": "poison" },
+        { "type": "unconscious" }
+      ],
+      "weaknesses": [
+        { "type": "vitality", "value": 5 },
+        { "type": "slashing", "value": 5 }
+      ]
+    },
+    "perception": {
+      "details": "",
+      "mod": 5,
+      "senses": [{ "type": "darkvision" }],
+      "vision": true
+    },
+    "saves": {
+      "fortitude": { "value": 7, "saveDetail": "" },
+      "reflex": { "value": 9, "saveDetail": "" },
+      "will": { "value": 7, "saveDetail": "" }
+    },
+    "abilities": {
+      "str": { "mod": 4 },
+      "dex": { "mod": 3 },
+      "con": { "mod": 3 },
+      "int": { "mod": -1 },
+      "wis": { "mod": 1 },
+      "cha": { "mod": 0 }
+    },
+    "skills": {
+      "athletics": { "base": 8 },
+      "deception": { "base": 6 },
+      "intimidation": { "base": 6 },
+      "stealth": { "base": 7 }
+    }
+  },
+  "items": [
+    {
+      "_id": "y75gjuac91xio97i",
+      "name": "Shortsword",
+      "type": "melee",
+      "flags": { "pf2e": { "linkedWeapon": "2GfHHd29Q1qnex42" } },
+      "system": {
+        "bonus": { "value": 11 },
+        "damageRolls": {
+          "0oGbi6GLoCucjLmS": {
+            "damage": "1d6+4",
+            "damageType": "piercing",
+            "category": null
+          }
+        },
+        "range": null,
+        "traits": { "value": ["agile", "versatile-s"], "otherTags": [] },
+        "action": "strike",
+        "subjectToMAP": true
+      }
+    },
+    {
+      "_id": "hbz2mkkkkzbc9wf6",
+      "name": "Fist",
+      "type": "melee",
+      "system": {
+        "bonus": { "value": 11 },
+        "damageRolls": {
+          "kzcqwmczmmzcxxfk": {
+            "damage": "1d8+4",
+            "damageType": "bludgeoning",
+            "category": null
+          }
+        },
+        "range": null,
+        "traits": { "value": ["agile"], "otherTags": [] },
+        "action": "strike",
+        "subjectToMAP": true
+      }
+    },
+    { "_id": "sword0000000000a", "name": "Shortsword", "type": "weapon", "system": {} },
+    { "_id": "act0000000000001", "name": "Slow", "type": "action", "system": {} },
+    { "_id": "act0000000000002", "name": "Void Healing", "type": "action", "system": {} },
+    { "_id": "act0000000000003", "name": "Sneak Attack", "type": "action", "system": {} },
+    { "_id": "act0000000000004", "name": "Sudden Surge", "type": "action", "system": {} }
+  ]
+}
