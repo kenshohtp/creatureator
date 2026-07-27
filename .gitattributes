@@ -1,0 +1,21 @@
+# Normalise line endings so Windows checkouts stop warning on every `git add`.
+# Everything is stored LF in the repo; Git converts on checkout as needed.
+* text=auto eol=lf
+
+# Foundry and tooling config are read by Node/browsers — always LF.
+*.json   text eol=lf
+*.ts     text eol=lf
+*.mjs    text eol=lf
+*.js     text eol=lf
+*.css    text eol=lf
+*.md     text eol=lf
+*.yml    text eol=lf
+
+# Binary assets: never convert, never diff as text.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.webp   binary
+*.webm   binary
+*.ogg    binary
+*.zip    binary
