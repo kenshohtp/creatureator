@@ -49,9 +49,19 @@ An always-on Mac mini could be the fixed point that both clients connect to.
 4. **GitHub's remote MCP endpoint is unusable from Claude Desktop.** It requires OAuth
    through a registered GitHub App, which Desktop's custom connector flow doesn't
    support — per GitHub's own install docs.
-5. The agreed workaround is GitHub's **official MCP server binary over stdio**,
-   configured per machine. See `docs/DEV-SETUP.md`. As of this writing it is documented
-   but **not yet installed or verified**.
+5. **The local MCP server binary was tried and does not work for Cowork.** The
+   binary installs and runs, but Cowork does not surface MCP servers configured in
+   `claude_desktop_config.json` — after a clean install and full restart, neither the
+   new `github` server nor the pre-existing `aon` server was available. See the status
+   banner at the top of `docs/DEV-SETUP.md`. Do not re-propose this without new
+   information.
+
+   Unknown: whether those servers work in a *regular* Claude Desktop chat rather than
+   Cowork. Possibly, but untested and not obviously useful.
+
+**Current reality:** git runs on the developer's machine. Claude writes files into the
+local clone; Dan commits and pushes. This works reliably. Any proposal should be
+measured against it rather than against the assumption that Claude can push.
 
 ## The question to explore
 

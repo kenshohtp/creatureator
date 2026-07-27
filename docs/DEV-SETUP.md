@@ -6,6 +6,40 @@ disposable working copies.
 
 ---
 
+> ## STATUS: ABANDONED, CAUSE UNRESOLVED (26 Jul 2026)
+>
+> The GitHub MCP binary installs and runs, but never became available to Claude
+> in Cowork. Abandoned after several restarts without a diagnosis.
+>
+> **What is actually known:**
+>
+> - Cowork *can* load stdio servers from `claude_desktop_config.json` — the `aon`
+>   server (a local `uv`-run Python script configured in this file) was working in
+>   a Cowork session earlier the same day.
+> - After the GitHub setup, neither `github` nor `aon` was available, and `aon` did
+>   not return even after the original config was restored.
+> - The MCP server logs were never read. The cause is genuinely unknown.
+>
+> **What went wrong in the attempt:**
+>
+> 1. `setup-github-mcp.ps1` first wrote the config with a UTF-8 BOM
+>    (`Set-Content -Encoding UTF8` on Windows PowerShell 5.1 adds one; PowerShell 7
+>    does not). Claude Desktop could not parse it and replaced it with a blank
+>    config, destroying the `aon` entry. Recovered via `restore-mcp-servers.ps1`.
+> 2. Two general conclusions were drawn from single failures and stated
+>    confidently — first that this approach would work, then that Cowork ignores
+>    the config file. Both were unsupported. Note the config also holds Cowork
+>    preferences and trusted-folder lists, so corrupting it has wider blast radius
+>    than just MCP servers.
+>
+> **Current workflow: git runs on the developer's machine.** Claude writes files
+> into the local clone; the developer commits and pushes. This has worked without
+> incident and costs three commands per milestone.
+>
+> If revisited, start by reading `%APPDATA%\Claude\logs\mcp-server-*.log` — that
+> step was skipped, and it is where the answer probably is. The scripts in `tools/`
+> are kept for reference; see also `HANDOFF-dev-server.md`.
+
 ## 1. Why this setup exists
 
 Claude's sandbox cannot reach github.com directly — the proxy blocks git over HTTPS,
