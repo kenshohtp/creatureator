@@ -62,10 +62,39 @@ Algorithm:
    bonus per Strike, damage per Strike, spell DC), read the chassis's value at its
    native level.
 2. **Classify** that value into a band — Extreme / High / Moderate / Low / Terrible —
-   by comparing against the Building Creatures table row for the native level.
-3. **Re-emit** the same band at the target level.
+   as the best band whose threshold the value meets or exceeds, using the Building
+   Creatures table row for the native level.
+3. **Re-emit** at the target level as `targetThreshold + offset`.
 4. Preserve deliberate outliers as offsets: if the chassis sits 2 above the High row,
    keep it 2 above High at the new level rather than snapping to the table.
+
+#### Classification is threshold-based, and this is verified
+
+An earlier implementation used nearest-match with a tie-break rule. It was wrong.
+
+`npm run fetch:corpus` harvests 4,714 published creatures from AoN, each carrying
+`*_scale_number` fields that decode to band labels (a single global scale:
+`1=terrible … 5=extreme`, `0=unset`). That makes the entire bestiary an independent
+oracle. Measured against it:
+
+| Model | Overall agreement |
+|---|---|
+| Nearest match, ties to better band | 78.0% |
+| Nearest match, ties to worse band | 86.4% |
+| **Threshold (value ≥ band's floor)** | **97.6%** |
+
+Threshold scores **exactly 100%** — 4709/4709, zero disagreements — for Perception,
+all three saving throws, and Hit Points, and 99%+ for every attribute modifier. That
+is not curve-fitting; it is the rule Paizo used.
+
+The residual is one documented AoN quirk. The AC table's columns sit at constant
+offsets from Low (`+0/+2/+3/+6` at every level), and AoN's boundaries land on
+`row.low`, `row.high` and `row.extreme` — skipping the `moderate` column and labelling
+everything from `row.low` upward as "moderate". A creature with AC exactly equal to
+the table's Low is therefore reported by AoN as Moderate. All 622 disagreements have
+that single shape and no other. On this boundary our reading is the faithful one, and
+the test asserts the shape rather than the rate, so a genuinely new failure mode
+cannot hide behind a percentage.
 
 Damage is the fiddly case — the tables give an *average* damage number, so re-emitting
 means solving for a dice expression (`NdX+M`) whose mean matches the target while
@@ -98,6 +127,13 @@ Several cells are **strings, not numbers**, and must not be coerced:
 
 Classification against a range means "does the value fall inside the band", not
 equality. HP in particular can never be an exact band match.
+
+**A band can be absent at a given level.** GM Core writes an em-dash where one does
+not exist — attribute modifiers have no Extreme column at levels −1 and 0. This is
+distinct from a negative number: the generator normalises en-dash and minus sign to a
+hyphen so `–1` parses as −1, and deliberately leaves the em-dash intact so it stays
+recognisable as "no value". `reemit` refuses to place a statistic into a band that
+does not exist at the target level rather than substituting a neighbouring one.
 
 #### Worked example — validation set
 

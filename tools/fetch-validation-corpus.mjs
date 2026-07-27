@@ -62,7 +62,11 @@ async function fetchPage(from) {
   const query = {
     size: PAGE_SIZE,
     from,
-    sort: [{ level: "asc" }, { name: "asc" }],
+    // Sort by _doc only. Sorting on `name` returns 400 because AoN indexes it
+    // as an analyzed text field, and Elasticsearch refuses to sort on those
+    // without fielddata enabled. _doc is stable enough for a fixture and is
+    // the cheapest sort available.
+    sort: ["_doc"],
     _source: [...META_FIELDS, ...STAT_FIELDS],
     query: {
       bool: {
@@ -78,7 +82,22 @@ async function fetchPage(from) {
   )}`;
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`AoN responded ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    // Elasticsearch explains itself in the body; surface it rather than
+    // reporting a bare status code.
+    const body = await res.text().catch(() => "");
+    let detail = body.slice(0, 600);
+    try {
+      const parsed = JSON.parse(body);
+      detail =
+        parsed.error?.root_cause?.[0]?.reason ??
+        parsed.error?.reason ??
+        detail;
+    } catch {
+      /* not JSON — keep the raw slice */
+    }
+    throw new Error(`AoN responded ${res.status} ${res.statusText}\n  ${detail}`);
+  }
   return res.json();
 }
 

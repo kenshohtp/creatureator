@@ -8,7 +8,15 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { classify, parseCell, rescale, rowFor } from "../src/scaling/bands.js";
+import {
+  classify,
+  isAbsentCell,
+  parseCell,
+  parseCellOrNull,
+  reemit,
+  rescale,
+  rowFor,
+} from "../src/scaling/bands.js";
 
 describe("parseCell", () => {
   it("reads scalars, with or without a sign", () => {
@@ -32,6 +40,33 @@ describe("parseCell", () => {
 
   it("normalises en-dash negatives", () => {
     expect(parseCell("–1")).toEqual({ kind: "scalar", value: -1 });
+  });
+
+  it("distinguishes an em-dash (no such band) from a negative number", () => {
+    // GM Core has no Extreme attribute modifier below level 1.
+    expect(isAbsentCell("—")).toBe(true);
+    expect(parseCellOrNull("—")).toBeNull();
+    // ...but an en-dash is a minus sign and must still parse.
+    expect(isAbsentCell("–1")).toBe(false);
+    expect(parseCellOrNull("–1")).toEqual({ kind: "scalar", value: -1 });
+  });
+});
+
+describe("absent bands", () => {
+  it("ignores the Extreme column for attribute modifiers below level 1", () => {
+    // L0 row is {extreme: "—", high: 3, moderate: 2, low: 0}. A +4 modifier
+    // cannot be Extreme there, so it classifies as High with an offset.
+    const c = classify(4, rowFor("attributeModifiers", 0));
+    expect(c.band).toBe("high");
+    expect(c.offset).toBe(1);
+  });
+
+  it("refuses to re-emit into a band that does not exist", () => {
+    const extreme = classify(5, rowFor("attributeModifiers", 1));
+    expect(extreme.band).toBe("extreme");
+    expect(() => reemit(extreme, rowFor("attributeModifiers", 0))).toThrow(
+      /does not exist at the target level/
+    );
   });
 });
 
