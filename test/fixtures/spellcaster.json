@@ -1,0 +1,78 @@
+{
+  "_comment": "Hand-built from real values observed in pf2e.pathfinder-monster-core / npc-core on PF2e 8.3.0 (probe, 2026-07-26). Models the Pitborn Adept pattern: a level 3 creature with TWO spellcasting entries at different DCs - Arcane Prepared (DC 21, attack +11) and Divine Innate (DC 17, attack +9). Trimmed to the fields the mapper reads.",
+  "name": "Pitborn Adept",
+  "type": "npc",
+  "system": {
+    "details": { "level": { "value": 3 } },
+    "attributes": {
+      "hp": { "value": 45, "temp": 0, "max": 45, "details": "" },
+      "ac": { "value": 19, "details": "" },
+      "weaknesses": [],
+      "resistances": []
+    },
+    "perception": { "mod": 9, "senses": [], "vision": true },
+    "saves": {
+      "fortitude": { "value": 8 },
+      "reflex": { "value": 10 },
+      "will": { "value": 12 }
+    },
+    "abilities": {
+      "str": { "mod": 1 },
+      "dex": { "mod": 2 },
+      "con": { "mod": 1 },
+      "int": { "mod": 4 },
+      "wis": { "mod": 2 },
+      "cha": { "mod": 3 }
+    },
+    "skills": { "arcana": { "base": 11 }, "occultism": { "base": 9 } }
+  },
+  "items": [
+    {
+      "_id": "casterentry0001",
+      "name": "Arcane Prepared Spells",
+      "type": "spellcastingEntry",
+      "system": {
+        "ability": { "value": "int" },
+        "spelldc": { "value": 11, "dc": 21, "mod": 0 },
+        "tradition": { "value": "arcane" },
+        "prepared": { "value": "prepared", "flexible": false },
+        "proficiency": { "value": 0 }
+      }
+    },
+    {
+      "_id": "casterentry0002",
+      "name": "Divine Innate Spells",
+      "type": "spellcastingEntry",
+      "system": {
+        "ability": { "value": "cha" },
+        "spelldc": { "value": 9, "dc": 17, "mod": 0 },
+        "tradition": { "value": "divine" },
+        "prepared": { "value": "innate", "flexible": false },
+        "proficiency": { "value": 0 }
+      }
+    },
+    {
+      "_id": "spellitem000001",
+      "name": "Fireball",
+      "type": "spell",
+      "system": {
+        "level": { "value": 3 },
+        "location": { "value": "casterentry0001", "heightenedLevel": 3 }
+      }
+    },
+    {
+      "_id": "meleeitem000001",
+      "name": "Dagger",
+      "type": "melee",
+      "system": {
+        "bonus": { "value": 10 },
+        "damageRolls": {
+          "dmgroll00000001": { "damage": "1d4+3", "damageType": "piercing", "category": null }
+        },
+        "range": null,
+        "traits": { "value": ["agile", "finesse"], "otherTags": [] },
+        "action": "strike"
+      }
+    }
+  ]
+}

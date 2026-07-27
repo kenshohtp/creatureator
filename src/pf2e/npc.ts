@@ -15,6 +15,8 @@
  * It operates on plain actor *source* objects (`actor.toObject()`).
  */
 
+import { averageDamage, isFlat, parseDamage } from "./damage.js";
+
 export type AbilityKey = "str" | "dex" | "con" | "int" | "wis" | "cha";
 export const ABILITY_KEYS: readonly AbilityKey[] = [
   "str", "dex", "con", "int", "wis", "cha",
@@ -42,6 +44,30 @@ export interface Strike {
   traits: string[];
 }
 
+/**
+ * A creature's spellcasting, one entry per `spellcastingEntry` item.
+ *
+ * Creatures can have several — the Pitborn Adept carries both "Arcane Prepared
+ * Spells" (DC 21) and "Divine Innate Spells" (DC 17), each with its own DC and
+ * attack modifier, so these must be handled individually rather than collapsed.
+ *
+ * `prepared` is PF2e's field name but describes the casting *kind*: sampling
+ * Monster Core found `innate` (54), `prepared` (17), `focus` (11) and
+ * `spontaneous` (5). All four scale their DC the same way.
+ */
+export interface SpellcastingEntry {
+  itemId: string;
+  name: string;
+  /** arcane | divine | occult | primal */
+  tradition: string;
+  /** innate | prepared | spontaneous | focus */
+  prepared: string;
+  /** `system.spelldc.dc` */
+  dc: number;
+  /** `system.spelldc.value` - the spell attack modifier. */
+  attack: number;
+}
+
 export interface StatBlock {
   name: string;
   level: number;
@@ -52,6 +78,7 @@ export interface StatBlock {
   abilities: Record<AbilityKey, number>;
   skills: Record<string, number>;
   strikes: Strike[];
+  spellcasting: SpellcastingEntry[];
   weaknesses: { type: string; value: number }[];
   resistances: { type: string; value: number }[];
 }
@@ -67,6 +94,42 @@ export interface NPCSource {
 
 function num(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+/**
+ * Which damage roll is the Strike's main damage?
+ *
+ * `system.damageRolls` is an object keyed by random id, so **iteration order
+ * means nothing**. Assuming the first entry is the primary is wrong, and
+ * observably so: in the bestiary, Fortune Dragon's Claw enumerates as
+ * `"1d6"` then `"4d6+15" piercing`, and Omen Dragon's Jaws as `"1d8"` then
+ * `"2d8+11" piercing`. Taking index 0 would rescale the rider and leave the
+ * actual damage untouched.
+ *
+ * The main damage is the largest die-based roll that is not a persistent or
+ * splash rider. Verified against every multi-roll example sampled from Monster
+ * Core, Monster Core 2 and NPC Core.
+ */
+export function primaryDamageIndex(rolls: DamageRoll[]): number {
+  if (rolls.length <= 1) return 0;
+
+  let bestIndex = -1;
+  let bestAverage = -Infinity;
+
+  rolls.forEach((roll, i) => {
+    // Persistent and splash are riders by definition, never main damage.
+    if (roll.category === "persistent" || roll.category === "splash") return;
+    const parsed = parseDamage(roll.formula);
+    if (!parsed || isFlat(parsed)) return;
+
+    const avg = averageDamage(parsed);
+    if (avg > bestAverage) {
+      bestAverage = avg;
+      bestIndex = i;
+    }
+  });
+
+  return bestIndex >= 0 ? bestIndex : 0;
 }
 
 export function readStatBlock(src: NPCSource): StatBlock {
@@ -108,6 +171,20 @@ export function readStatBlock(src: NPCSource): StatBlock {
       };
     });
 
+  const spellcasting: SpellcastingEntry[] = (src.items ?? [])
+    .filter((i) => i["type"] === "spellcastingEntry")
+    .map((i) => {
+      const isys = i["system"] ?? {};
+      return {
+        itemId: String(i["_id"] ?? ""),
+        name: String(i["name"] ?? ""),
+        tradition: String(isys["tradition"]?.value ?? ""),
+        prepared: String(isys["prepared"]?.value ?? ""),
+        dc: num(isys["spelldc"]?.dc),
+        attack: num(isys["spelldc"]?.value),
+      };
+    });
+
   const typedValues = (list: unknown): { type: string; value: number }[] =>
     Array.isArray(list)
       ? list
@@ -125,6 +202,7 @@ export function readStatBlock(src: NPCSource): StatBlock {
     abilities,
     skills,
     strikes,
+    spellcasting,
     weaknesses: typedValues(attrs["weaknesses"]),
     resistances: typedValues(attrs["resistances"]),
   };
@@ -188,6 +266,18 @@ export function applyStatBlock(src: NPCSource, block: StatBlock): NPCSource {
       const target = item["system"].damageRolls?.[roll.id];
       if (target) target.damage = roll.formula;
     }
+  }
+
+  const castingById = new Map(block.spellcasting.map((s) => [s.itemId, s]));
+  for (const item of out.items ?? []) {
+    if (item["type"] !== "spellcastingEntry") continue;
+    const entry = castingById.get(String(item["_id"]));
+    if (!entry) continue;
+
+    item["system"] ??= {};
+    item["system"].spelldc ??= {};
+    item["system"].spelldc.dc = entry.dc;
+    item["system"].spelldc.value = entry.attack;
   }
 
   if (out.name !== block.name) out.name = block.name;

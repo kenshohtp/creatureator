@@ -12,6 +12,7 @@ import { resolve } from "node:path";
 import {
   readStatBlock,
   applyStatBlock,
+  primaryDamageIndex,
   type NPCSource,
 } from "../src/pf2e/npc.js";
 import {
@@ -72,6 +73,10 @@ describe("readStatBlock", () => {
   it("reads Remaster weakness terminology", () => {
     expect(b.weaknesses).toContainEqual({ type: "vitality", value: 5 });
   });
+
+  it("reports no spellcasting for a creature that has none", () => {
+    expect(b.spellcasting).toEqual([]);
+  });
 });
 
 describe("applyStatBlock", () => {
@@ -124,6 +129,54 @@ describe("applyStatBlock", () => {
     expect(out.items.find((i) => i["type"] === "weapon")).toBeDefined();
     expect(out.system["attributes"].immunities).toHaveLength(6);
     expect(out.system["attributes"].hp.details).toBe("void healing");
+  });
+});
+
+/**
+ * PF2e stores damage rolls in an object keyed by random id, so enumeration
+ * order is arbitrary. These cases are taken verbatim from the bestiary, where
+ * the rider genuinely enumerates before the main damage.
+ */
+describe("primaryDamageIndex", () => {
+  const roll = (formula: string, damageType = "untyped", category: string | null = null) =>
+    ({ id: Math.random().toString(36).slice(2), formula, damageType, category });
+
+  it("returns 0 for a single roll", () => {
+    expect(primaryDamageIndex([roll("2d8+6", "bludgeoning")])).toBe(0);
+  });
+
+  it("picks the main damage when it enumerates first", () => {
+    // Greater Hell Hound / Jaws
+    const rolls = [roll("2d8+6", "piercing"), roll("2d6", "fire")];
+    expect(primaryDamageIndex(rolls)).toBe(0);
+  });
+
+  it("picks the main damage when the rider enumerates first", () => {
+    // Fortune Dragon (Ancient) / Tail - the real ordering in Monster Core.
+    const rolls = [roll("1d6", "force"), roll("4d10+15", "bludgeoning")];
+    expect(primaryDamageIndex(rolls)).toBe(1);
+  });
+
+  it("ignores persistent riders even when they are large", () => {
+    // Caldera Oni / Jaws pattern.
+    const rolls = [
+      roll("2d6+14", "slashing"),
+      roll("1d8", "bleed", "persistent"),
+    ];
+    expect(primaryDamageIndex(rolls)).toBe(0);
+
+    // Even a persistent roll bigger than the main damage is still a rider.
+    expect(primaryDamageIndex([roll("1d4+1", "piercing"), roll("6d6", "bleed", "persistent")]))
+      .toBe(0);
+  });
+
+  it("ignores splash and flat riders", () => {
+    const rolls = [roll("2", "fire", "splash"), roll("1d4+1", "piercing")];
+    expect(primaryDamageIndex(rolls)).toBe(1);
+  });
+
+  it("falls back to the first roll when nothing qualifies", () => {
+    expect(primaryDamageIndex([roll("special"), roll("also special")])).toBe(0);
   });
 });
 

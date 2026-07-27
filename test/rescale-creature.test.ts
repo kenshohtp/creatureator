@@ -181,6 +181,34 @@ describe("rescaleCreature: edge cases", () => {
     expect(readStatBlock(r.actor)).toEqual(readStatBlock(husk()));
   });
 
+  /**
+   * Regression: rescale the main damage even when a rider enumerates ahead of
+   * it. Taken from Fortune Dragon (Ancient) in Monster Core, where Tail lists
+   * "1d6" force before "4d10+15" bludgeoning.
+   */
+  it("rescales the main damage, not whichever roll happens to be first", () => {
+    const src = husk();
+    const fist = src.items.find((i) => i["name"] === "Fist")!;
+    fist["system"].damageRolls = {
+      riderfirst00000a: { damage: "1d6", damageType: "force", category: null },
+      mainsecond0000b: { damage: "1d8+4", damageType: "bludgeoning", category: null },
+    };
+
+    const r = rescaleCreature(src, 5);
+    const item = r.actor.items.find((i) => i["name"] === "Fist")!;
+
+    // The rider is untouched...
+    expect(item["system"].damageRolls["riderfirst00000a"].damage).toBe("1d6");
+    // ...and the real damage grew.
+    const main = item["system"].damageRolls["mainsecond0000b"].damage;
+    expect(main).not.toBe("1d8+4");
+    expect(main).toMatch(/^2d8/);
+
+    expect(
+      r.warnings.some((w) => w.path === "strikes.Fist.damage.rider")
+    ).toBe(true);
+  });
+
   it("refuses a chassis whose own level is off the tables", () => {
     const src = husk();
     src.system["details"].level.value = 25;

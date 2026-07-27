@@ -21,6 +21,7 @@ import type { CREATURE_TABLES } from "../data/creature-tables.js";
 import {
   readStatBlock,
   applyStatBlock,
+  primaryDamageIndex,
   ABILITY_KEYS,
   SAVE_KEYS,
   type NPCSource,
@@ -96,7 +97,36 @@ function step(ctx: Ctx, path: string, table: TableKey, value: number): number {
     ctx.warnings.push({ path, message: `No table row: ${(e as Error).message}` });
     return value;
   }
+  return stepWith(ctx, path, table, value, fromRow, toRow);
+}
 
+type Row = Record<string, number | string>;
+
+/**
+ * Table 2-11 does not share the shape of the others: it has three bands
+ * (Extreme, High, Moderate - no Low or Terrible) and pairs two statistics per
+ * band, as `"high dc"` and `"high spell attack bonus"`. `classify` expects
+ * plain band keys, so project one of the two out into a normal row.
+ */
+function spellRow(level: number, which: "dc" | "attack"): Row {
+  const raw = rowFor("spellDC", level);
+  const suffix = which === "dc" ? "dc" : "spell attack bonus";
+  const row: Row = {};
+  for (const band of ["extreme", "high", "moderate"] as const) {
+    const v = raw[`${band} ${suffix}`];
+    if (v !== undefined) row[band] = v;
+  }
+  return row;
+}
+
+function stepWith(
+  ctx: Ctx,
+  path: string,
+  table: TableKey,
+  value: number,
+  fromRow: Row,
+  toRow: Row
+): number {
   const c = classify(value, fromRow);
   let next: number;
   try {
@@ -205,10 +235,46 @@ export function rescaleCreature(src: NPCSource, toLevel: number): RescaleResult 
     });
   }
 
+  /**
+   * Spell DCs and spell attack modifiers, per casting entry.
+   *
+   * A creature can have more than one - the Pitborn Adept has separate Arcane
+   * Prepared and Divine Innate entries with different DCs - so each is scaled
+   * on its own rather than collapsed into a single value.
+   *
+   * Spell *ranks* are deliberately untouched. Raising a creature's level does
+   * not automatically entitle it to higher-rank spells; that is an authoring
+   * decision, and GM Core caps innate and prepared ranks by level in a way the
+   * user should apply knowingly.
+   */
+  for (const entry of block.spellcasting) {
+    const label = entry.name || entry.tradition || entry.itemId;
+    entry.dc = stepWith(
+      ctx, `spellcasting.${label}.dc`, "spellDC", entry.dc,
+      spellRow(ctx.from, "dc"), spellRow(ctx.to, "dc")
+    );
+    entry.attack = stepWith(
+      ctx, `spellcasting.${label}.attack`, "spellDC", entry.attack,
+      spellRow(ctx.from, "attack"), spellRow(ctx.to, "attack")
+    );
+
+    const maxRank = Math.max(1, Math.ceil(toLevel / 2));
+    ctx.warnings.push({
+      path: `spellcasting.${label}`,
+      message:
+        `Spell ranks left unchanged. At level ${toLevel}, GM Core suggests a ` +
+        `maximum spell rank of ${maxRank} - review the spell list separately.`,
+    });
+  }
+
   for (const strike of block.strikes) {
     strike.attack = step(
       ctx, `strikes.${strike.name}.attack`, "strikeAttackBonus", strike.attack
     );
+
+    // Identify the main damage by size, not by position - damageRolls is
+    // keyed by random id and enumerates in no meaningful order.
+    const primary = primaryDamageIndex(strike.damage);
 
     strike.damage.forEach((roll, index) => {
       const parsed = parseDamage(roll.formula);
@@ -230,14 +296,15 @@ export function rescaleCreature(src: NPCSource, toLevel: number): RescaleResult 
         return;
       }
 
-      // Secondary damage rolls (persistent bleed, energy riders) are not what
-      // Table 2-10 describes; it governs a Strike's main damage.
-      if (index > 0) {
+      // Riders (energy, persistent, splash) are not what Table 2-10 describes;
+      // it governs a Strike's main damage.
+      if (index !== primary) {
+        const tag = roll.category ? ` ${roll.category}` : "";
         ctx.warnings.push({
-          path: `strikes.${strike.name}.damage[${index}]`,
+          path: `strikes.${strike.name}.damage.rider`,
           message:
-            `Left "${roll.formula}" (${roll.damageType}) unchanged - the damage ` +
-            `table covers a Strike's primary damage only.`,
+            `Left "${roll.formula}"${tag} ${roll.damageType} unchanged - the ` +
+            `damage table covers a Strike's main damage only.`,
         });
         return;
       }

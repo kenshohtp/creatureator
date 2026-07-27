@@ -297,6 +297,46 @@ UI carries its band label and a visible provenance ("Moderate, from chassis" vs.
 Encoded as `describe.todo` blocks in `test/scaling.test.ts` so the divergence stays
 visible in test output instead of rotting in a doc.
 
+### 7.6 Findings from the live bestiary
+
+A 720-creature sample across 66 Actor packs (clean PF2e 8.3.0 install, no modules)
+settled several things that assumption had got wrong or left open.
+
+**All six mapper field paths held for 720/720 creatures.** No misses. Levels ranged
+-1 to 25.
+
+**Damage rolls have no meaningful order.** `system.damageRolls` is an object keyed by
+random id, and in the bestiary the rider frequently enumerates *before* the main
+damage — Fortune Dragon's Tail lists `"1d6"` force then `"4d10+15"` bludgeoning.
+Taking index 0 as primary rescaled the rider and froze the real damage. Now selected
+by largest die-based roll, excluding `persistent` and `splash`, which are riders by
+definition. This bug was invisible to every test until real data exposed it, because
+the Husk Zombie has one roll per Strike.
+
+**Riders are mostly plain energy dice.** Of 71 secondary rolls: 59 uncategorised, 9
+persistent, 3 splash; 68 dice, 3 flat. They are left unscaled and reported. Since they
+are almost all pure dice with no modifier, scaling them later would be simple if
+that decision changes.
+
+**Flat damage is a real shape.** Bare values like `"1"` and `"4"` appear as riders.
+They parse (as `count: 0`) but are never rescaled — Table 2-10 governs dice damage.
+
+**43% of creatures cast spells.** DC lives at `system.spelldc.dc`, spell attack at
+`system.spelldc.value`. Creatures may have several entries with different DCs, scaled
+independently. Casting kinds observed: innate 54, prepared 17, focus 11, spontaneous 5.
+
+**Table 2-11 is shaped unlike the others** — three bands only (no Low or Terrible),
+with paired columns per band (`"high dc"`, `"high spell attack bonus"`). An adapter
+projects one column into a standard band row before classification.
+
+**Spell ranks are not rescaled**, only DCs and attack modifiers. Which spells a
+creature knows is an authoring decision; the engine warns with the level-appropriate
+rank cap instead of rewriting a spell list.
+
+**Levels above 24 are refused.** GM Core's tables stop at 24 and the bestiary contains
+exactly one sampled level 25 creature (Oliphaunt of Jandelay). Extrapolating would
+invent numbers with no published basis.
+
 ### 7.4 Licensing
 
 Generated table data is Open Game Content under the ORC licence. Needs a `NOTICE.md`
