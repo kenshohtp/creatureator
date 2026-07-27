@@ -4,7 +4,7 @@
 
 .DESCRIPTION
   Downloads the github-mcp-server binary, extracts it, and merges an entry into
-  claude_desktop_config.json — preserving any MCP servers already configured.
+  claude_desktop_config.json - preserving any MCP servers already configured.
 
   Once this is done and Claude Desktop is restarted, Claude can commit directly
   to GitHub from either machine, with no local clone required.
@@ -31,7 +31,17 @@
   The token is stored in plaintext in claude_desktop_config.json. That is how
   Claude Desktop reads it and there is no supported alternative. Scoping the
   token to a single repository with no admin rights keeps the blast radius
-  small — do not use a classic token with full repo scope here.
+  small - do not use a classic token with full repo scope here.
+
+  KEEP THIS FILE PURE ASCII.
+
+  Windows PowerShell 5.1 decodes .ps1 files as ANSI (Windows-1252) unless they
+  carry a UTF-8 BOM. A UTF-8 em-dash then arrives as three CP1252 characters,
+  the last of which PowerShell treats as a closing quote - which silently ends
+  a string early and produces parser errors pointing at unrelated lines.
+
+  Rather than depend on the file's encoding, use ASCII only: "-" not an
+  em-dash, "->" not an arrow, plain quotes not typographic ones.
 #>
 
 [CmdletBinding()]
@@ -158,8 +168,28 @@ $config["mcpServers"]["github"] = @{
   env     = @{ GITHUB_PERSONAL_ACCESS_TOKEN = $Token }
 }
 
-$config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+# Write UTF-8 WITHOUT a byte-order mark.
+#
+# `Set-Content -Encoding UTF8` emits a BOM on Windows PowerShell 5.1 (PowerShell
+# 7 changed this default). A leading BOM makes strict JSON parsers reject the
+# whole file, which silently disables *every* configured MCP server, not just
+# the one being added. Use .NET directly so the behaviour is identical on both.
+$json = $config | ConvertTo-Json -Depth 10
+[System.IO.File]::WriteAllText($configPath, $json, (New-Object System.Text.UTF8Encoding($false)))
 Say "      wrote github entry" "DarkGray"
+
+# Verify what actually landed on disk, rather than trusting the write.
+$bytes = [System.IO.File]::ReadAllBytes($configPath)
+if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+  throw "Config was written with a BOM - Claude Desktop will not parse it."
+}
+try {
+  [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json | Out-Null
+} catch {
+  throw "Config is not valid JSON after writing: $($_.Exception.Message)"
+}
+$serverList = @($config["mcpServers"].Keys) -join ", "
+Say "      verified: no BOM, valid JSON, servers = $serverList" "DarkGray"
 
 # --- 5. Smoke test ----------------------------------------------------------
 Say "[4/4] Verifying the binary runs..." "Cyan"
@@ -171,6 +201,7 @@ try {
 }
 
 Say "`nDone." "Green"
+Say "Servers now configured: $serverList" "Green"
 Say @"
 
 Next:
