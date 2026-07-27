@@ -19,6 +19,7 @@ import {
   averageDamage,
   formatDamage,
   expressForAverage,
+  isFlat,
   rescaleDamageFormula,
 } from "../src/pf2e/damage.js";
 
@@ -134,9 +135,28 @@ describe("damage formulas", () => {
     expect(parseDamage("d4+1")).toEqual({ count: 1, faces: 4, modifier: 1 });
   });
 
-  it("rejects things that are not simple NdX+M", () => {
+  it("rejects things that are neither dice nor flat", () => {
     expect(parseDamage("1d6+1d4")).toBeNull();
     expect(parseDamage("special")).toBeNull();
+  });
+
+  /**
+   * Flat riders are common in the bestiary - a 720-creature sample turned up
+   * bare values like "1", "2", "4" repeatedly, as persistent and splash damage.
+   * They must parse, and must not be scaled against the Strike damage table.
+   */
+  it("parses flat damage riders", () => {
+    expect(parseDamage("1")).toEqual({ count: 0, faces: 0, modifier: 1 });
+    expect(parseDamage("4")).toEqual({ count: 0, faces: 0, modifier: 4 });
+    expect(isFlat(parseDamage("2")!)).toBe(true);
+    expect(isFlat(parseDamage("1d6")!)).toBe(false);
+    expect(averageDamage(parseDamage("3")!)).toBe(3);
+    expect(formatDamage(parseDamage("3")!)).toBe("3");
+  });
+
+  it("never rescales a flat rider", () => {
+    expect(rescaleDamageFormula("1", 20, "2d8+7")).toBe("1");
+    expect(rescaleDamageFormula("4", 30, "3d10+9")).toBe("4");
   });
 
   it("formats round-trip", () => {

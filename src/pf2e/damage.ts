@@ -9,15 +9,38 @@
  */
 
 export interface DamageExpression {
+  /** Zero for flat damage with no dice, e.g. a persistent "1". */
   count: number;
+  /** Zero when `count` is zero. */
   faces: number;
   modifier: number;
 }
 
 const FORMULA = /^\s*(\d*)d(\d+)\s*(?:([+-])\s*(\d+))?\s*$/i;
+const FLAT = /^\s*[+]?(-?\d+)\s*$/;
 
-/** "1d6+4" -> { count: 1, faces: 6, modifier: 4 }. Null if not a simple NdX+M. */
+/** True for dice-less damage such as "1" or "4". */
+export function isFlat(e: DamageExpression): boolean {
+  return e.count === 0;
+}
+
+/**
+ * "1d6+4" -> { count: 1, faces: 6, modifier: 4 }
+ * "2"     -> { count: 0, faces: 0, modifier: 2 }   (flat damage)
+ *
+ * Null only when the formula is neither of those.
+ *
+ * Flat entries are common in the bestiary — a sample of 720 creatures turned
+ * them up repeatedly, always as riders like persistent or splash damage. They
+ * parse so we can reason about them; they are not rescaled, because Table 2-10
+ * describes a Strike's dice damage rather than fixed riders.
+ */
 export function parseDamage(formula: string): DamageExpression | null {
+  const flat = FLAT.exec(formula);
+  if (flat?.[1] !== undefined) {
+    return { count: 0, faces: 0, modifier: Number(flat[1]) };
+  }
+
   const m = FORMULA.exec(formula);
   if (!m) return null;
   const count = m[1] === "" || m[1] === undefined ? 1 : Number(m[1]);
@@ -37,6 +60,7 @@ export function averageDamage(e: DamageExpression): number {
 }
 
 export function formatDamage(e: DamageExpression): string {
+  if (isFlat(e)) return String(e.modifier);
   const dice = `${e.count}d${e.faces}`;
   if (e.modifier === 0) return dice;
   return e.modifier > 0 ? `${dice}+${e.modifier}` : `${dice}${e.modifier}`;
@@ -87,6 +111,10 @@ export function rescaleDamageFormula(
 ): string {
   const current = parseDamage(formula);
   if (!current) return formula;
+
+  // Flat riders are not governed by the Strike damage table. Scaling a
+  // persistent "1" against it would be applying the wrong rule confidently.
+  if (isFlat(current)) return formula;
 
   const fromTable = targetTableExpression ? parseDamage(targetTableExpression) : null;
   const preferredCount = fromTable?.count ?? current.count;

@@ -29,6 +29,7 @@ import {
 import {
   parseDamage,
   averageDamage,
+  isFlat,
   rescaleDamageFormula,
 } from "../pf2e/damage.js";
 
@@ -64,6 +65,21 @@ interface Ctx {
   to: number;
   changes: StatChange[];
   warnings: RescaleWarning[];
+}
+
+/**
+ * GM Core's Building Creatures tables cover levels -1 to 24.
+ *
+ * The bestiary does contain level 25 creatures, so this is a real boundary and
+ * not a theoretical one. We refuse rather than extrapolate: inventing a level 25
+ * row would produce numbers with no published basis, presented with the same
+ * confidence as ones that have it.
+ */
+export const TABLE_MIN_LEVEL = -1;
+export const TABLE_MAX_LEVEL = 24;
+
+export function isLevelSupported(level: number): boolean {
+  return Number.isInteger(level) && level >= TABLE_MIN_LEVEL && level <= TABLE_MAX_LEVEL;
 }
 
 /**
@@ -122,6 +138,30 @@ export function rescaleCreature(src: NPCSource, toLevel: number): RescaleResult 
     };
   }
 
+  // Check the range once, up front. Without this every statistic fails
+  // separately and buries the single real cause under twenty identical
+  // warnings.
+  for (const [label, level] of [["chassis", original.level], ["target", toLevel]] as const) {
+    if (!isLevelSupported(level)) {
+      return {
+        actor: structuredClone(src),
+        block: original,
+        fromLevel: original.level,
+        toLevel,
+        changes: [],
+        warnings: [
+          {
+            path: "level",
+            message:
+              `Cannot rescale: ${label} level ${level} is outside the Building ` +
+              `Creatures tables, which cover ${TABLE_MIN_LEVEL} to ${TABLE_MAX_LEVEL}. ` +
+              `Extrapolating would invent numbers Paizo never published.`,
+          },
+        ],
+      };
+    }
+  }
+
   block.ac = step(ctx, "ac", "armorClass", original.ac);
   block.perception = step(ctx, "perception", "perception", original.perception);
 
@@ -175,7 +215,17 @@ export function rescaleCreature(src: NPCSource, toLevel: number): RescaleResult 
       if (!parsed) {
         ctx.warnings.push({
           path: `strikes.${strike.name}.damage`,
-          message: `Left "${roll.formula}" unchanged - not a simple NdX+M formula.`,
+          message: `Left "${roll.formula}" unchanged - unrecognised damage formula.`,
+        });
+        return;
+      }
+
+      if (isFlat(parsed)) {
+        ctx.warnings.push({
+          path: `strikes.${strike.name}.damage`,
+          message:
+            `Left flat ${roll.formula} ${roll.damageType} unchanged - the Strike ` +
+            `damage table governs dice damage, not fixed riders.`,
         });
         return;
       }

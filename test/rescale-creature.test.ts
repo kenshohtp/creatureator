@@ -158,4 +158,34 @@ describe("rescaleCreature: edge cases", () => {
     expect(r.toLevel).toBe(1);
     expect(readStatBlock(r.actor).ac).toBeLessThan(17);
   });
+
+  it("handles the full supported range", () => {
+    for (const level of [-1, 0, 24]) {
+      const r = rescaleCreature(husk(), level);
+      expect(r.changes.length, `level ${level}`).toBeGreaterThan(5);
+    }
+  });
+
+  /**
+   * The bestiary contains level 25 creatures but GM Core's tables stop at 24.
+   * Refuse once, clearly, rather than emitting an identical warning for every
+   * statistic and burying the actual cause.
+   */
+  it("refuses a target level outside the tables, with one clear warning", () => {
+    const r = rescaleCreature(husk(), 25);
+    expect(r.changes).toHaveLength(0);
+    expect(r.warnings).toHaveLength(1);
+    expect(r.warnings[0]!.message).toMatch(/outside the Building Creatures tables/);
+    expect(r.warnings[0]!.message).toMatch(/target level 25/);
+    // The actor must come back untouched.
+    expect(readStatBlock(r.actor)).toEqual(readStatBlock(husk()));
+  });
+
+  it("refuses a chassis whose own level is off the tables", () => {
+    const src = husk();
+    src.system["details"].level.value = 25;
+    const r = rescaleCreature(src, 10);
+    expect(r.changes).toHaveLength(0);
+    expect(r.warnings[0]!.message).toMatch(/chassis level 25/);
+  });
 });
