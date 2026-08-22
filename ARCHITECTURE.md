@@ -383,6 +383,63 @@ explain every number it produced afterwards.
 
 ### 7.6 Findings from the live bestiary
 
+#### What governs a creature ability's numbers — RESOLVED by measurement
+
+Grafting an ability onto a rescaled creature means rewriting the numbers inside
+its text. Which table governs those numbers was an open guess; Table 2-11 (Spell
+DC) was the obvious candidate, and this project's record with obvious candidates
+is poor. So `tools/probe-ability-numbers.js` harvested 2,790 checks and 2,368
+damage expressions from 2,131 published creatures (PF2e 8.4.0), and the answer
+came back clean.
+
+**Save DCs are Table 2-11 — the same table as spellcasting, not a separate one.**
+
+| | exact | within ±1 | within ±2 |
+|---|---|---|---|
+| all saves (n=2,437) | **70.0%** | 95.9% | 98.6% |
+| Fortitude (n=922) | 66.8% | 95.7% | 98.4% |
+| Reflex (n=765) | 75.3% | 96.1% | 99.2% |
+| Will (n=750) | 68.7% | 95.9% | 98.1% |
+
+Distribution across the three columns is High 1,529 / Moderate 822 / Extreme 79:
+High is the ordinary case. 48.5% of all save DCs sit exactly on the High column
+alone. So a grafted save DC is classified and re-emitted exactly like a
+spellcasting DC, carrying its offset, showing its band.
+
+**Flat checks are not level-scaled, and the data proves it rather than
+suggesting it.** Only 0.8% of the 125 sampled land on a table column, and the
+DCs used are the familiar fixed values — DC 5 (35 uses), DC 15 (34), DC 11 (23).
+The decisive evidence is the spread: DC 5 appears on creatures at 15 *different*
+levels, DC 11 at 14, DC 15 at 15. A number that recurs unchanged across the
+whole level range is not a function of level. Scaling one would change what the
+ability does — Volluk Azrinae's Discorporate is a DC 15 flat check at level 7
+and would still be DC 15 flat at level 20.
+
+**Skill DCs do not fit well enough to touch.** `@Check[athletics|dc:24]` and
+friends reach only 20.2% exact across 109 samples (Medicine 12.5%). Reported and
+left for the user.
+
+**Ability damage fits nothing.** Against Table 2-10 (Strike Damage) 13.8% exact;
+against Table 2-12 (Area Damage) 9.3%. Ability `@Damage` mixes headline area
+damage, small riders, persistent damage and healing, and until those can be told
+apart — the harvest did not keep traits, so area abilities cannot be separated
+out yet — the honest thing is to surface it and leave it alone. Revisiting means
+re-running the probe with `traits` and `@Template` presence retained.
+
+Implemented in `src/scaling/rescale-ability.ts`. Every number left alone is
+reported as a note with its reason; nothing is silent.
+
+#### Legacy alignment traits break a graft
+
+Loading actors from pre-remaster adventure paths makes PF2e log
+`evil is not a valid choice` — those books still carry alignment traits that
+PF2e 8.x rejects. This is cosmetic when reading, but not when grafting: an
+ability copied off a Blood Lords creature carries `evil` in `system.traits.value`
+and writing it onto a new actor can fail validation. The graft layer must strip
+`good`, `evil`, `lawful` and `chaotic` from a copied ability and say that it
+did.
+
+
 #### AC classifies at 86.8% against AoN's labels — investigated, no change made
 
 The corpus scoreboard has always shown AC well below every other statistic
