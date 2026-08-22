@@ -177,6 +177,36 @@ Search for an ability, then attach it. Resolution order:
 Any grafted ability carrying a level-scaled number (a save DC, a damage expression)
 gets passed through Layer 2 so it lands correctly for the target level.
 
+#### Authoring a custom ability — all three routes
+
+Decision (Dan): novel abilities can be created **any of three ways**, because they
+suit different situations rather than competing.
+
+- **Type it.** A form for name, action cost, traits, description. Always available,
+  needs nothing configured.
+- **Have an LLM draft it.** Describe the ability in plain language, get a draft, then
+  edit. Requires the key setup deferred in §5. Note the standing rule still holds:
+  an LLM may draft *text*, but every number it produces is validated against the
+  Building Creatures tables before it lands, and the band is shown as with any other
+  statistic.
+- **Copy and modify.** Find something close in the compendia or on AoN, attach it,
+  then change the text and numbers. Reuses the grafting flow with no new authoring UI.
+
+All three converge on the same PF2e `action` item, so downstream handling is
+identical regardless of origin.
+
+### UI build order
+
+The picker alone is a level-changer: it cannot preview a creature or edit one, which
+is most of the actual product. Sequence:
+
+1. **Stat block rendering + preview pane** — show the chassis as it is and as it would
+   be at the target level, side by side with bands and warnings. Fixes picking blind,
+   and the renderer is what the editor is built on.
+2. **Editor** — every number editable, band shown, one-click band override, HP and
+   weaknesses presented together (see §7.5). Creation happens only on confirmation.
+3. **Ability grafting** — search, attach, and the three authoring routes above.
+
 ---
 
 ## 4. AoN integration

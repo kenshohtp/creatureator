@@ -109,12 +109,53 @@ async function stats() {
   };
 }
 
+/** Open the chassis picker, building the index first if needed. */
+async function open(): Promise<void> {
+  const { ChassisPicker } = await import("./foundry/picker.js");
+  new ChassisPicker(await chassisIndex()).render(true);
+}
+
+/**
+ * Add a button to the Actors sidebar footer, beside PF2e's Bestiary Browser.
+ *
+ * Matches that button's markup so it inherits the sidebar styling rather than
+ * looking bolted on. Deliberately does NOT use `data-action`: ApplicationV2
+ * dispatches those through its own action handler and an unrecognised value
+ * logs warnings, so the click is wired directly instead.
+ */
+function injectSidebarButton(root: HTMLElement): void {
+  if (!game.user?.isGM) return;
+
+  const footer = root.querySelector<HTMLElement>("footer.directory-footer");
+  if (!footer || footer.querySelector(".creatureator-open")) return;
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "creatureator-open";
+  button.innerHTML =
+    `<i class="fa-solid fa-dna" inert></i><span>Creature Builder</span>`;
+  button.addEventListener("click", () => void open());
+
+  // Below the Bestiary Browser: finding a monster comes before building one.
+  footer.appendChild(button);
+}
+
 Hooks.once("init", () => {
   console.log(`${MODULE_ID} | initialising`);
 });
 
+Hooks.on("renderActorDirectory", (_app: unknown, element: unknown) => {
+  // v13+ passes an HTMLElement; older code paths pass a jQuery object.
+  const root =
+    element instanceof HTMLElement
+      ? element
+      : ((element as { [0]?: HTMLElement })?.[0] ?? null);
+  if (root) injectSidebarButton(root);
+});
+
 Hooks.once("ready", () => {
   game.creatureator = {
+    open,
     find,
     rescale,
     inspect,

@@ -150,6 +150,40 @@ function stepWith(
   return next;
 }
 
+/**
+ * Classify a value against a table at a given level.
+ *
+ * Used by the editor to re-derive a band when the user types a number by hand,
+ * so an edited statistic still shows where it sits rather than losing its band.
+ */
+export function classifyAt(
+  table: TableKey,
+  level: number,
+  value: number
+): { band: Band; offset: number } | null {
+  try {
+    const row = table === "spellDC" ? spellRow(level, "dc") : rowFor(table, level);
+    return classify(value, row);
+  } catch {
+    return null;
+  }
+}
+
+/** The value a band produces at a level, before any offset. */
+export function bandValueAt(
+  table: TableKey,
+  level: number,
+  band: Band,
+  which: "dc" | "attack" = "dc"
+): number | null {
+  try {
+    const row = table === "spellDC" ? spellRow(level, which) : rowFor(table, level);
+    return Math.round(reemit({ band, offset: 0 }, row));
+  } catch {
+    return null;
+  }
+}
+
 export function rescaleCreature(src: NPCSource, toLevel: number): RescaleResult {
   const original = readStatBlock(src);
   const ctx: Ctx = { from: original.level, to: toLevel, changes: [], warnings: [] };

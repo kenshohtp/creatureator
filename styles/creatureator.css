@@ -1,9 +1,8 @@
 /* Creatureator
  *
- * Placeholder. Real styles arrive with the chassis picker UI.
- * Band colours are defined now because they are referenced by the design
- * in ARCHITECTURE.md: every derived number is shown with its band, so the
- * bands need a consistent visual language from the start.
+ * Band colours exist because the design rule is that no derived number appears
+ * without its band. They are defined once here and used wherever a statistic
+ * is shown.
  */
 
 .creatureator {
@@ -13,19 +12,22 @@
   --creatureator-band-low: #3f5c6b;
   --creatureator-band-terrible: #4a4a52;
 
-  /* A value carried across unchanged from the chassis versus one the user set. */
-  --creatureator-provenance-derived: #6b6b6b;
-  --creatureator-provenance-user: #2f6f4f;
+  --creatureator-official: #2f5d8a;
+  --creatureator-module: #6b4a8a;
+  --creatureator-homebrew: #2f6f4f;
 }
 
-.creatureator .band {
+.creatureator .band,
+.creatureator .provenance {
   display: inline-block;
-  padding: 0 0.35em;
+  padding: 0 0.4em;
   border-radius: 3px;
-  font-size: 0.8em;
+  font-size: 0.72rem;
+  line-height: 1.5;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #fff;
+  white-space: nowrap;
 }
 
 .creatureator .band.extreme { background: var(--creatureator-band-extreme); }
@@ -34,11 +36,254 @@
 .creatureator .band.low { background: var(--creatureator-band-low); }
 .creatureator .band.terrible { background: var(--creatureator-band-terrible); }
 
-/* Offsets are the thing a GM most needs to notice, so they are never silent. */
+.creatureator .provenance.system { background: var(--creatureator-official); }
+.creatureator .provenance.module { background: var(--creatureator-module); }
+.creatureator .provenance.world { background: var(--creatureator-homebrew); }
+
 .creatureator .offset {
   font-variant-numeric: tabular-nums;
   opacity: 0.85;
 }
+
+.creatureator .muted { opacity: 0.6; }
+
+/* --- Chassis picker ------------------------------------------------------ */
+
+.creatureator-picker {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 0.5rem;
+}
+
+.creatureator-picker .picker-controls {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--color-border-light-tertiary, #7a7971);
+}
+
+.creatureator-picker .row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.creatureator-picker .row.secondary {
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+.creatureator-picker input.search { flex: 1 1 auto; }
+.creatureator-picker input[type="number"] { width: 4.5rem; }
+
+.creatureator-picker .target,
+.creatureator-picker .level-range {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.creatureator-picker .prov-toggles {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.creatureator-picker .prov-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+}
+
+/* List and preview sit side by side; the preview is what stops you picking
+   a creature blind from a name and a number. */
+.creatureator-picker .picker-body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  min-height: 0;
+}
+
+.creatureator-picker .chassis-list {
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+}
+
+.creatureator-picker .preview {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 0 0.5rem 0.5rem;
+  border-left: 1px solid var(--color-border-light-tertiary, #7a7971);
+}
+
+.creatureator-picker .preview .placeholder {
+  padding-top: 2rem;
+  text-align: center;
+}
+
+.creatureator .preview-header h3 {
+  margin: 0.2rem 0 0;
+  border: none;
+}
+
+.creatureator .preview-header .level-change {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.creatureator .stat-section { margin-bottom: 0.75rem; }
+
+.creatureator .stat-section h4 {
+  margin: 0 0 0.2rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+  border-bottom: 1px solid var(--color-border-light-tertiary, #7a7971);
+}
+
+.creatureator .stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.creatureator .stat-table th {
+  text-align: left;
+  font-weight: 500;
+  padding: 0.1rem 0.3rem 0.1rem 0;
+  white-space: nowrap;
+}
+
+.creatureator .stat-table td {
+  padding: 0.1rem 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.creatureator .stat-table .from { text-align: right; opacity: 0.6; }
+.creatureator .stat-table .arrow { opacity: 0.4; }
+.creatureator .stat-table .to { font-weight: 600; }
+.creatureator .stat-table .band-cell { width: 1%; white-space: nowrap; }
+
+/* A statistic the rescale left alone is worth de-emphasising, not hiding -
+   its absence from the changes would be more confusing than a dim row. */
+.creatureator .stat-table tr.unchanged { opacity: 0.55; }
+
+.creatureator .warnings { margin: 0.4rem 0 0.8rem; }
+
+.creatureator .warning {
+  border-left: 3px solid var(--creatureator-band-extreme);
+  background: rgba(123, 45, 38, 0.08);
+  padding: 0.35rem 0.5rem;
+  margin: 0.3rem 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.creatureator .warning strong { display: block; }
+
+.creatureator .abilities { display: flex; flex-wrap: wrap; gap: 0.6rem; font-size: 0.85rem; }
+.creatureator .defences { font-size: 0.9rem; margin: 0.2rem 0; }
+.creatureator .weaknesses { font-size: 0.85rem; margin: 0.2rem 0; opacity: 0.85; }
+
+.creatureator ul.strikes,
+.creatureator ul.plain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+}
+
+.creatureator ul.strikes li {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0.5rem;
+  padding: 0.1rem 0;
+}
+
+.creatureator .strike-name { font-weight: 600; }
+.creatureator .strike-attack { font-variant-numeric: tabular-nums; }
+.creatureator .strike-damage { opacity: 0.8; }
+
+.creatureator-picker .chassis-row {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 8rem) 4.5rem 2.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+/* Long names wrapped to two lines and made rows uneven; ellipsis keeps the
+   list scannable, with the full name on hover. */
+.creatureator-picker .chassis-name,
+.creatureator-picker .chassis-pack {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.creatureator-picker .chassis-row:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.creatureator-picker .chassis-row.selected {
+  background: var(--color-shadow-primary, #b0a999);
+  color: var(--color-text-light-highlight, #f0f0e0);
+}
+
+.creatureator-picker .chassis-level {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  opacity: 0.8;
+}
+
+.creatureator-picker .chassis-name { font-weight: 600; }
+
+.creatureator-picker .chassis-pack {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.7;
+  font-size: 0.85em;
+}
+
+/* How far the chassis sits from the target level - a large jump is a hint
+   that the result will need more review, so it is shown rather than hidden. */
+.creatureator-picker .chassis-delta {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+.creatureator-picker .chassis-note {
+  padding: 0.75rem 0.4rem;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.creatureator-picker .picker-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--color-border-light-tertiary, #7a7971);
+}
+
+.creatureator-picker button.create { width: auto; flex: 0 0 auto; }
 
 .creatureator .warning {
   border-left: 3px solid var(--creatureator-band-extreme);
