@@ -4,7 +4,7 @@
 needed to resolve the open issues and continue building, without re-deriving
 decisions or re-discovering data.
 
-Last updated: 26 Jul 2026, at commit `dbb5a10`.
+Last updated: 22 Aug 2026, at commit `c12bfb1`.
 
 ---
 
@@ -38,8 +38,8 @@ tell you when something is wrong — listen, he has been right every time.
 | Repo (local) | `C:\Projects\creatureator` — **not** in OneDrive |
 | Foundry data path | `G:\FVTT13test2` (despite the name, this is v14) |
 | Module symlink | `G:\FVTT13test2\Data\modules\creatureator` → the repo |
-| Foundry | v14.365 |
-| PF2e system | 8.3.0 |
+| Foundry | v14.366 (desktop app, **not** a browser — see 6.7) |
+| PF2e system | 8.4.0 |
 | Shell | **Windows PowerShell 5.1** |
 
 **Dan hates OneDrive** ("I NEVER want to use OneDrive - its awful") and is right that
@@ -69,27 +69,33 @@ is needed. A *server* restart is only needed when adding a new module.
 
 ## 3. Current state
 
-**141 tests passing**, 2 `describe.todo`. 8 test files.
+**279 tests passing**, no `describe.todo` left. 14 test files.
 
 ### What works, and how it was verified
 
 | Piece | Verification |
 |---|---|
-| Band classification | Exact agreement with 4,714 published creatures on Perception, all 3 saves, HP (4709/4709 each). 99%+ on attributes. |
+| Band classification | Exact agreement with 4,714 published creatures on Perception, all 3 saves, HP (4709/4709 each). 99%+ on attributes. AC is 86.8% — investigated and left alone, see ARCHITECTURE 7.6. |
 | GM Core tables | Generated from AoN by document ID, committed. All 12 tables. |
 | NPC data mapping | 720 creatures across 66 packs, zero field misses. |
 | Whole-creature rescaling | Husk Zombie 2→5 matches Dan's hand-built version within a point. |
 | Spellcasting | DC and spell attack, multiple entries per creature. |
 | Chassis discovery | 6,393 creatures indexed live, with provenance. |
 | Actor creation | Verified in Foundry: rule elements, MAP progression, immunities, actions all survive. |
+| **Editor** | Verified in Foundry by screenshot. Every number editable, band re-derived live, one-click band override, HP and weaknesses as one block, rename, create on confirmation. |
+| **Ability DCs** | 2,437 save DCs from 2,131 creatures: 70.0% land exactly on a Table 2-11 column, 98.6% within 2. Flat checks proven level-independent. |
+| **Ability grafting** | Search 1,300 shared ability items, attach, rescale the DCs inside, strip legacy alignment traits. UI verified by render; **not yet verified in a live Foundry session.** |
 
 ### What does NOT exist
 
-- **Editing.** You cannot change anything. Pick a chassis, pick a level, create.
-- **Ability grafting.** Nothing. This is the biggest gap and the actual product.
-- **LLM anything.** Deliberately deferred; see §6.
-
----
+- **The other two authoring routes.** Grafting covers "copy from a compendium".
+  Typing an ability by hand and having an LLM draft one are both unbuilt (7).
+- **Copy from another creature.** The ~30,000 abilities embedded in bestiary
+  creatures are not reachable from the attach panel; only the ~1,300 in shared
+  Item packs are. Indexing the rest means loading every actor.
+- **Ability damage scaling.** Measured against both candidate tables and neither
+  fits (13.8% / 9.3%). Surfaced and left alone deliberately.
+- **LLM anything.** Still deliberately deferred; see 7.
 
 ## 4. Architecture — the parts that matter
 
@@ -122,8 +128,10 @@ out-of-range levels are all handled this way.
 ### Layers
 
 1. **Chassis selection** — `src/foundry/chassis.ts`
-2. **Scaling engine** — `src/scaling/bands.ts`, `rescale-creature.ts` (no Foundry deps)
-3. **Ability grafting** — not built
+2. **Scaling engine** — `src/scaling/bands.ts`, `rescale-creature.ts`,
+   `rescale-ability.ts` (no Foundry deps)
+3. **Editing** — `src/editor/edit-session.ts` (no Foundry deps)
+4. **Ability grafting** — `src/pf2e/ability.ts`, `src/foundry/ability-index.ts`
 
 ---
 
@@ -161,44 +169,35 @@ These came from probing live Foundry and cost real time to discover. Do not re-d
 
 ## 6. Open issues
 
-### 6.1 Editor — the next build
+### 6.1 Editor — DONE
 
-Specified but not written. Dan's complaint, verbatim: *"i cannot preview the creatures
-i want to customize OR actually customize it with abilities etc - it just rescales."*
-Preview is now done; customising is not.
+Screen two of the builder window. Land on an editable stat block, every number
+editable, band re-derived on each keystroke, one-click band override per
+statistic, HP and weaknesses in one block, rename, create only on confirmation.
 
-Requirements:
+`src/editor/edit-session.ts` is the model (Foundry-free, fully tested),
+`src/foundry/editor-view.ts` renders it, `src/foundry/picker.ts` wires it.
 
-- Land on an editable stat block instead of creating immediately.
-- Every number editable; band recalculated live as the user types.
-- One-click band override (a dropdown per statistic). Overriding sets the value to that
-  band's figure; the offset resets to zero.
-- **HP and weaknesses shown together** — this is §7.5 option C and the reason the
-  reference creature's HP looks wrong (see 6.2).
-- Rename before creating. Create only on confirmation.
+Two things the live render caught that the sandbox could not:
 
-Groundwork already in place:
-- `src/pf2e/paths.ts` — read/write any statistic by the dotted path the engine reports.
-  A test asserts every emitted path is addressable.
-- `src/foundry/statblock.ts` — rendering, band chips, section grouping. Reuse it.
-- `classifyAt()` and `bandValueAt()` in `rescale-creature.ts` — for live re-derivation
-  and band overrides respectively.
+- The damage band dropdown advertised Table 2-10's own dice ("Low 2d4+6") while
+  the override preserves the chassis's die size and actually produces 2d6+4. It
+  now builds its options through the same re-expression the override uses.
+- "Source and target level are the same" was rendering as a red warning on an
+  unmodified copy. That is a fact, not a problem, and the header already says it.
 
-### 6.2 HP versus weaknesses — a real design problem
+### 6.2 HP versus weaknesses — RESOLVED
 
-The Husk Zombie has 55 HP at level 2, far above its band, because it carries
-`vitality 5, slashing 5`. GM Core explicitly trades weaknesses against HP. Rescaling
-to level 5 preserves that +19 offset and yields **110 HP**. Dan's hand-built version
-used **75** — he dropped the numeric weakness and let HP fall to Moderate.
+The editor presents them as one block with the trade spelled out, and the HP
+warning names the current numbers and clears when the decision is made.
+`test/edit-session.test.ts` asserts the editor reproduces Occam's Risen Kinetic
+Husk exactly: AC 22, HP 75, both weaknesses removed.
 
-The engine warns and does not adjust. The editor must present HP and weaknesses as one
-decision. Encoded as a `describe.todo` in `test/scaling.test.ts`.
+### 6.3 Band drift — RESOLVED
 
-### 6.3 Band drift — the second `describe.todo`
-
-Dan's creature also moved AC from Moderate (17 @ L2) to High (22 @ L5). Pure rescaling
-gives 21. Decision was **option A**: rescale faithfully, show the band, offer a
-one-click change. The editor implements this.
+Option A as decided: the engine rescales faithfully (AC 17 @ L2 → 21, not 22),
+shows the band, and offers a one-click change. Both `describe.todo` blocks are
+now real tests.
 
 ### 6.4 ORC attribution — blocking any public release
 
@@ -230,19 +229,74 @@ was restored from backup. See the status banner in `docs/DEV-SETUP.md`.
 
 ---
 
-## 7. What comes after the editor
+### 6.7 Getting data out of Foundry — Dan runs the DESKTOP APP
 
-### Ability grafting — the actual product
+This cost a round of confusion and is worth knowing up front. Dan runs the
+Foundry **desktop app** (Electron), not Foundry in a browser. Consequences:
+
+- `saveDataToFile` returns without producing a file.
+- A `blob:` download link is handed to Windows, which offers to find an app for
+  it in the Microsoft Store.
+- There is no downloads machinery to fall back on.
+
+**What works:** `copy(...)` in the DevTools console puts text on the clipboard,
+and PowerShell reads it back. Beware the ordering trap — copying the PowerShell
+command out of the chat *overwrites* what `copy()` just put there. Have
+PowerShell poll for it instead:
+
+```powershell
+$d="C:\path\out.tsv"; for($i=0;$i -lt 90;$i++){ $c=Get-Clipboard -Raw; if($c -match "^[CD]\t"){ $c|Set-Content -Encoding utf8 $d; break }; Start-Sleep 2 }
+```
+
+Also: PF2e logs hundreds of `evil is not a valid choice` warnings whenever
+anything loads a pre-remaster adventure-path actor. Probes that sweep the
+bestiary should silence `console.warn`/`console.error` for the duration and
+report how many they swallowed — `tools/probe-ability-numbers.js` shows the
+pattern.
+
+### 6.8 Moving files INTO the repo from a sandboxed session
+
+Claude cannot write to the repo directly and cannot push to GitHub (6.5). What
+worked all session: Claude tars the changed files, sends the archive, it is
+committed to `scripts\` (gitignored, and `npm run build` empties it), then
+unpacked over the repo. The bridge blocks deletes, so `tar x` fails on existing
+files — extract to a temp directory and `cat` each file into place instead.
+
+Never run `git status` through the bridge without `--no-optional-locks`: it
+writes `.git/index.lock` and cannot remove it, which blocks Dan's next commit.
+
+## 7. What comes next
+
+### Ability grafting — route 1 of 3 is BUILT
 
 Three sources, resolution order:
 
-1. **Foundry compendium item** — free automation, correct action cost, working rules.
-2. **AoN** — fetch text, generate a PF2e `action` item with `actionType`,
-   `actions.value` and traits.
-3. **Hand-authored** — for novel content like `Bound to Occam`.
+1. **Foundry compendium item** — BUILT. `src/foundry/ability-index.ts` indexes
+   every Item pack and keeps anything of type `action`: about 1,300 rows across
+   the bestiary glossary (55), the family glossary (482), adventure-specific
+   actions (208) and general actions (574), plus any module or homebrew pack.
+   Read from compendium *indexes*; no documents load until something is attached.
+2. **AoN** — not built. Fetch text, generate a PF2e `action` item.
+3. **Hand-authored** — not built. For novel content like `Bound to Occam`.
 
-Any grafted ability carrying a level-scaled number (save DC, damage) passes through the
-scaling engine so it lands correctly for the target level.
+What a graft does, all of it reported rather than assumed
+(`src/pf2e/ability.ts`):
+
+- Rescales save DCs inside the description against Table 2-11.
+- Strips `good` / `evil` / `lawful` / `chaotic`. Without this the item cannot be
+  created — PF2e 8.x refuses those traits and the AP bestiaries are full of them.
+- Drops the item's `_id` so it cannot collide, and records where it came from in
+  `_stats.compendiumSource`.
+
+The panel asks **"written for level"** rather than assuming: a compendium ability
+carries no level of its own, so there is no way to know what a DC inside it was
+balanced against. It defaults to the creature's level, so the default action
+changes nothing.
+
+**Not built:** copying an ability off another *creature*. That is where the real
+mass is — roughly 30,000 embedded abilities, five per creature — and it needs the
+chassis picker rather than the ability index, because indexing it means loading
+every actor.
 
 ### Custom ability authoring — all three routes
 
@@ -299,18 +353,27 @@ src/
   scaling/
     bands.ts               classify / reemit / threshold. The core.
     rescale-creature.ts    whole-creature rescaling, warnings, classifyAt, bandValueAt
+    rescale-ability.ts     DCs inside ability text; what must never move
+  editor/
+    edit-session.ts        the editing model: baseline, working block, live bands
   pf2e/
     npc.ts                 actor <-> StatBlock, primaryDamageIndex
     damage.ts              formula parsing, flat riders, re-expression
-    paths.ts               read/write statistics by dotted path
+    paths.ts               read/write statistics by dotted path, prettyPath
+    inline.ts              @Check / @Damage / @Template parsing and rewriting
+    ability.ts             ability items: read, sanitise traits, graft
   foundry/
     chassis.ts             discovery, provenance, filtering
-    picker.ts              ApplicationV2 chassis picker with preview
+    ability-index.ts       ability discovery across Item packs
+    picker.ts              two screens: chassis picker, then the editor
     statblock.ts           rendering, band chips, sections
+    editor-view.ts         editor markup: fields, bands, defences, abilities
 tools/
   fetch-creature-tables.mjs   regenerates the tables from AoN
   fetch-validation-corpus.mjs 4,714-creature fixture
   probe-*.js                  live Foundry probes
+  probe-abilities.js          where abilities live, and how their numbers are written
+  probe-ability-numbers.js    harvests DCs and damage with creature levels
   setup-github-mcp.ps1/.sh    see 6.5; do not expect them to work
   restore-mcp-servers.ps1     recovery for the BOM incident
 docs/
@@ -325,7 +388,17 @@ their reasoning. Read §3 (layers), §7.5 (band drift), §7.6 (bestiary findings
 
 ## 10. Suggested first move
 
-Build the editor, but not all at once. Render one section — Defences, with AC, HP,
-saves — get a screenshot from Dan, confirm the field/band/override interaction reads
-well, then expand to the rest. The UI is the one layer that cannot be verified without
-his eyes, so short loops beat a big blind build.
+Grafting works but has never been exercised in a live session. Before building
+anything else: open the builder, pick a chassis, search the Abilities panel,
+attach something, and create the creature. Two specific unknowns:
+
+1. **Index build time** on an install with all the premium modules. It runs in
+   the background and the panel says "Reading your compendia…", but nobody has
+   watched it against 25 Item packs including a 6,283-entry feat compendium.
+2. **Whether the detail lines read as useful or as clutter** at real width. Each
+   ability shows what moved and everything deliberately left alone, which is
+   correct by the project's rules and might still be too much on screen at once.
+
+After that, the remaining product is the other two authoring routes — type it by
+hand, and have an LLM draft it — plus "copy an ability from another creature",
+which reuses the chassis picker rather than the ability index.
