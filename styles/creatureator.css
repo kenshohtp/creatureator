@@ -363,11 +363,16 @@
   font-size: 0.85rem;
 }
 
+/* "Champion Devotion Spells spell attack" is a real label, and refusing to wrap
+   it squeezed the band dropdown beside it down to "Set b". Wrapping is the
+   lesser evil: it costs a line on two rows instead of making a control unusable. */
 .creatureator .edit-table th {
   text-align: left;
   font-weight: 500;
   padding: 0.15rem 0.3rem 0.15rem 0;
-  white-space: nowrap;
+  white-space: normal;
+  max-width: 11rem;
+  hyphens: auto;
 }
 
 .creatureator .edit-table td {
@@ -517,13 +522,26 @@
  * and squeezing them into a 26rem column made every one of them wrap.
  */
 
+/* `display: block` is not redundant. Foundry's own sheet styles turn some
+   sections into flex rows, which put the heading *beside* the list and left the
+   rows shrink-wrapped to two thirds of the window. Every block below states its
+   display and width rather than inheriting whatever the sheet decides. */
 .creatureator .stat-section.abilities {
+  display: block;
+  width: 100%;
   margin-top: 0.75rem;
   border-top: 1px solid var(--color-border-light-tertiary, #7a7971);
   padding-top: 0.4rem;
 }
 
+.creatureator .stat-section.abilities > h4 {
+  display: block;
+  width: 100%;
+}
+
 .creatureator ul.ability-list {
+  display: block;
+  width: 100%;
   list-style: none;
   margin: 0 0 0.5rem;
   padding: 0;
@@ -531,6 +549,7 @@
 }
 
 .creatureator .ability-row {
+  width: 100%;
   display: grid;
   grid-template-columns: 5.5rem minmax(8rem, 1fr) minmax(0, 1.2fr) 3rem auto;
   align-items: baseline;
@@ -608,6 +627,8 @@
 }
 
 .creatureator .ability-add {
+  display: block;
+  width: 100%;
   border: 1px solid var(--color-border-light-tertiary, #7a7971);
   border-radius: 3px;
   padding: 0.4rem 0.5rem;
@@ -639,6 +660,8 @@
 }
 
 .creatureator ol.ability-results {
+  display: block;
+  width: 100%;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -648,6 +671,7 @@
 }
 
 .creatureator .ability-result {
+  width: 100%;
   display: grid;
   /* The provenance column fits "HOMEBREW", which is the longest label; at
      4.5rem it was clipped mid-word. */
