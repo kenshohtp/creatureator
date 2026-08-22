@@ -10,7 +10,7 @@
   ],
   "compatibility": {
     "minimum": "14",
-    "verified": "14.361"
+    "verified": "14.366"
   },
   "relationships": {
     "systems": [
@@ -19,7 +19,7 @@
         "type": "system",
         "compatibility": {
           "minimum": "8.2.0",
-          "verified": "8.3.0"
+          "verified": "8.4.0"
         }
       }
     ]
