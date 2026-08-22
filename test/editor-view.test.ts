@@ -76,6 +76,17 @@ describe("rows", () => {
     expect(ac).not.toContain("(");
   });
 
+  it("selects the option that matches the value, and nothing when it is off band", () => {
+    const s = session();
+    // AC 21 is exactly L5 moderate, so that option is the selected one.
+    expect(bandSelect(s.field("ac")!)).toContain('value="moderate" selected');
+    // HP 110 is High +19 - no band produces it, so the placeholder stands.
+    const hp = bandSelect(s.field("hp")!);
+    expect(hp).toContain("Set band…</option>");
+    expect(hp).toMatch(/<option value="" disabled selected>/);
+    expect(hp).not.toContain('value="high" selected');
+  });
+
   it("keeps the rescaled value as the way back to it", () => {
     const s = session();
     expect(revertButton(s.field("hp")!)).toBe("");

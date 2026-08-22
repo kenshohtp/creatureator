@@ -281,16 +281,27 @@ export class EditSession {
       dirty: baseline !== null && baseline !== formula,
       band: c?.band ?? null,
       offset: c?.offset ?? null,
-      options: governed ? this.#damageOptions() : [],
+      options: governed ? this.#damageOptions(formula) : [],
       note,
       ...(roll ? { damageType: roll.damageType } : {}),
     };
   }
 
-  #damageOptions(): BandOption[] {
+  /**
+   * What each band would actually produce for *this* Strike.
+   *
+   * Not the table's own expression. Rescaling preserves the chassis's die size
+   * (a d12 club still swings a d12), so offering Table 2-10's "2d4+6" to a d6
+   * weapon advertises a result the module will not deliver - the user picks Low
+   * and gets 2d6+4. The dropdown is built through the same re-expression the
+   * override uses, so what it promises is what it does.
+   */
+  #damageOptions(formula: string): BandOption[] {
     return bandsAt("strikeDamage", this.level).flatMap((band) => {
+      const average = bandDamageAverageAt(this.level, band);
+      if (average === null) return [];
       const expr = bandFormulaAt(this.level, band);
-      return expr === null ? [] : [{ band, value: expr, range: null }];
+      return [{ band, value: rescaleDamageFormula(formula, average, expr), range: null }];
     });
   }
 
@@ -417,7 +428,14 @@ export class EditSession {
    * warnings.
    */
   warnings(): RescaleWarning[] {
-    const kept = this.rescaleWarnings.filter((w) => w.path !== "hp");
+    const kept = this.rescaleWarnings.filter(
+      (w) =>
+        w.path !== "hp" &&
+        // "Source and target level are the same" is a fact, not a problem, and
+        // the editor header already states it. Rendering it in the warning
+        // style tells the user something is wrong when nothing is.
+        !(w.path === "level" && this.fromLevel === this.toLevel)
+    );
     const out = [...kept];
 
     const hp = this.field("hp");

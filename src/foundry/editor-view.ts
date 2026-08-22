@@ -53,7 +53,10 @@ export function bandSelect(field: EditField): string {
       const span = o.range && o.range.min !== o.range.max
         ? ` (${o.range.min}–${o.range.max})`
         : "";
-      const selected = o.band === field.band && (field.offset ?? 0) === 0 ? " selected" : "";
+      // Matched on the value, not on the band: a statistic can sit in a band
+      // without sitting *on* it, and only an exact match means "this is what
+      // you already have".
+      const selected = String(o.value) === String(field.value) ? " selected" : "";
       return `<option value="${o.band}"${selected}>${capitalise(o.band)} ${escapeHtml(o.value)}${span}</option>`;
     })
     .join("");
@@ -63,7 +66,7 @@ export function bandSelect(field: EditField): string {
    * already says "Low +2", and a dropdown that displays the same string reads
    * as though "Low +2" were an option you could pick.
    */
-  const offBand = !field.band || (field.offset ?? 0) !== 0;
+  const offBand = !field.options.some((o) => String(o.value) === String(field.value));
   const unset = `<option value="" disabled${offBand ? " selected" : ""}>Set band…</option>`;
   return `<select class="band-select" data-path="${escapeHtml(field.path)}"
                   aria-label="Set band for ${escapeHtml(field.label)}">${unset}${options}</select>`;

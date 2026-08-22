@@ -383,6 +383,42 @@ explain every number it produced afterwards.
 
 ### 7.6 Findings from the live bestiary
 
+#### AC classifies at 86.8% against AoN's labels — investigated, no change made
+
+The corpus scoreboard has always shown AC well below every other statistic
+(86.8%, against 100% for Perception, all three saves and HP). It became worth
+chasing once the editor started putting a band chip next to AC: roughly one
+creature in seven would show a chip that disagrees with Nethys.
+
+What the corpus actually says (probed 22 Aug 2026, all 4,709 creatures):
+
+- **Every one of the 622 mismatches runs the same way** — we say Low, AoN says
+  Moderate. There is not a single case in the other direction, at any level.
+- **All of them sit 1 or 2 below Moderate's figure** (431 at −1, 191 at −2).
+- The same one-directional pattern appears in the other imperfect statistics:
+  all 36 Strength misses are exactly 1 below Extreme; 285 of 299 attack misses
+  are within 3 below.
+- AC's bands are unusually tight — across every level the gaps are fixed at
+  extreme→high 3, **high→moderate 1**, moderate→low 2 — so an AC two points
+  under Moderate is simultaneously exactly Low.
+
+The obvious hypothesis was that AoN's labels are *tolerant*: a value a point or
+two under a band's figure still counts as that band. **Measured, and it is
+wrong** — a tolerance of 1 drops AC agreement from 86.8% to 61.2%, Strength from
+99.2% to 44.6%, and Perception from 100% to 71.8%, because it promotes every
+value sitting just above its own floor as well. Nearest-match scores 93.6% on AC
+but is known to be far worse overall (86% vs 97.6%), so it is not the answer
+either.
+
+**Decision: change nothing.** The threshold rule stays. This is a labelling
+divergence at AC's tight band spacing, not a numeric one — no figure the module
+writes to an actor is affected, and re-emission still round-trips exactly. What
+it costs is chip wording on a minority of ACs, which is the cheapest possible
+place for a disagreement to live. If it is ever worth another look, the open
+question is what AoN's `ac_scale_number` is actually computed *from*; it does
+not appear to be the GM Core table alone.
+
+
 A 720-creature sample across 66 Actor packs (clean PF2e 8.3.0 install, no modules)
 settled several things that assumption had got wrong or left open.
 

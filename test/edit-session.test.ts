@@ -169,6 +169,28 @@ describe("band override", () => {
     expect(field.band).toBe("extreme");
   });
 
+  /**
+   * Caught by looking at the running module rather than at an assertion: the
+   * Shortsword read "2d6+4" with the dropdown offering "Low 2d4+6", because the
+   * options were built from Table 2-10's own expression while the override
+   * preserves the chassis's die size. The dropdown promised dice it would not
+   * deliver.
+   */
+  it("offers exactly what the override will produce, in the chassis's dice", () => {
+    const s = session("husk-zombie", 5);
+    const path = "strikes.Shortsword.damage.0";
+    const options = s.field(path)!.options;
+
+    // A d6 weapon is offered d6 options, though the table is written 2d4/2d6/2d8/2d12.
+    expect(options.every((o) => String(o.value).includes("d6"))).toBe(true);
+
+    for (const option of options) {
+      const local = session("husk-zombie", 5);
+      local.setBand(path, option.band);
+      expect(local.field(path)!.value, `picking ${option.band}`).toBe(option.value);
+    }
+  });
+
   it("refuses on a field no table governs", () => {
     const s = session("husk-zombie", 5);
     const rider = s
@@ -354,6 +376,19 @@ describe("spellcasters", () => {
 
 describe("a chassis kept at its own level", () => {
   const s = session("husk-zombie", 2);
+
+  /**
+   * "Source and target level are the same" is a fact, not a problem. It arrives
+   * from the engine as a warning because there it explains an empty change
+   * list, but the editor header already says "unmodified copy" - rendering it
+   * again in the warning style tells the user something is wrong when nothing
+   * is, which is how people learn to skip past warnings that matter.
+   */
+  it("does not warn about a level that was never going to change", () => {
+    expect(s.warnings().some((w) => w.path === "level")).toBe(false);
+    // The HP-versus-weakness warning is still real, and still shown.
+    expect(s.warnings().some((w) => w.path === "hp")).toBe(true);
+  });
 
   it("is still fully editable even though nothing was rescaled", () => {
     expect(s.field("ac")!.value).toBe(17);
