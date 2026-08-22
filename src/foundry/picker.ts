@@ -31,7 +31,14 @@ import {
   renderEditor,
   renderWarnings,
   revertButton,
+  type AbilityPanel,
 } from "./editor-view.js";
+import {
+  buildAbilityIndex,
+  filterAbilities,
+  sortAbilities,
+  type AbilityEntry,
+} from "./ability-index.js";
 import { EditSession, type DefenceKind } from "../editor/edit-session.js";
 import { rescaleCreature, type RescaleResult } from "../scaling/rescale-creature.js";
 import type { Band } from "../scaling/bands.js";
@@ -48,6 +55,7 @@ const { ApplicationV2 } = foundry.applications.api;
 const TABLE_MIN = -1;
 const TABLE_MAX = 24;
 const MAX_ROWS = 200;
+const MAX_ABILITY_ROWS = 50;
 
 const PROVENANCE_LABEL: Record<Provenance, string> = {
   system: "Official",
@@ -95,6 +103,17 @@ export class ChassisPicker extends ApplicationV2 {
   /** "pick" is the chassis list; "edit" is the editor over a live session. */
   #mode: "pick" | "edit" = "pick";
   #session: EditSession | null = null;
+
+  /**
+   * The ability index, built once and kept for the window's lifetime.
+   *
+   * Around 1,300 rows read from compendium indexes - no documents are loaded
+   * until something is actually attached.
+   */
+  #abilities: AbilityEntry[] | null = null;
+  #abilitiesLoading = false;
+  #abilitySearch = "";
+  #abilitySourceLevel: number | null = null;
 
   #all: ChassisEntry[] = [];
   #state: PickerState = {
@@ -305,14 +324,55 @@ export class ChassisPicker extends ApplicationV2 {
       this.#preview
     );
     this.#mode = "edit";
+    this.#abilitySourceLevel = null;
     await this.render();
+    void this.#loadAbilities();
+  }
+
+  /** What the attach panel should show right now. */
+  #abilityPanel(): AbilityPanel {
+    const all = this.#abilities ?? [];
+    const search = this.#abilitySearch;
+    const results = search.trim()
+      ? sortAbilities(filterAbilities(all, { search }), search).slice(0, MAX_ABILITY_ROWS)
+      : [];
+
+    return {
+      search,
+      results,
+      total: all.length,
+      loading: this.#abilitiesLoading,
+      sourceLevel: this.#abilitySourceLevel ?? this.#session?.level ?? 1,
+    };
+  }
+
+  /**
+   * Build the ability index in the background.
+   *
+   * Deliberately not awaited by the editor: the stat block should be usable
+   * immediately, and the attach panel says it is still reading rather than
+   * blocking the whole screen on a compendium sweep.
+   */
+  async #loadAbilities(): Promise<void> {
+    if (this.#abilities || this.#abilitiesLoading) return;
+    this.#abilitiesLoading = true;
+    void this.render();
+    try {
+      this.#abilities = await buildAbilityIndex(game.packs.contents ?? [...game.packs]);
+    } catch (error) {
+      console.error("creatureator | ability index failed", error);
+      this.#abilities = [];
+    } finally {
+      this.#abilitiesLoading = false;
+      void this.render();
+    }
   }
 
   #editHtml(): string {
     const session = this.#session!;
     return `
       <div class="editor-screen">
-        ${renderEditor(session)}
+        ${renderEditor(session, this.#abilityPanel())}
       </div>
       <footer class="picker-footer">
         <button type="button" class="back">
@@ -611,11 +671,82 @@ export class ChassisPicker extends ApplicationV2 {
         void this.render();
       });
 
+    this.#activateAbilities(root, session);
+
     root.querySelector<HTMLButtonElement>("button.back")
       ?.addEventListener("click", () => void this.#back());
 
     root.querySelector<HTMLButtonElement>("button.create")
       ?.addEventListener("click", () => void this.#create());
+  }
+
+  #activateAbilities(root: HTMLElement, session: EditSession): void {
+    root.querySelector<HTMLInputElement>("input.ability-search")
+      ?.addEventListener("input", (ev) => {
+        this.#abilitySearch = (ev.target as HTMLInputElement).value;
+        this.#rerender();
+      });
+
+    root.querySelector<HTMLInputElement>("input.ability-level")
+      ?.addEventListener("change", (ev) => {
+        const raw = Number((ev.target as HTMLInputElement).value);
+        this.#abilitySourceLevel = Number.isFinite(raw)
+          ? Math.min(TABLE_MAX, Math.max(TABLE_MIN, raw))
+          : null;
+        this.#rerender();
+      });
+
+    root.querySelectorAll<HTMLButtonElement>("button.ability-attach").forEach((button) => {
+      button.addEventListener("click", () => void this.#attach(button.dataset["uuid"], session));
+    });
+
+    const parseAbilityId = (id: string): { grafted: boolean; key: string } => {
+      const at = id.indexOf(":");
+      return { grafted: id.slice(0, at) === "graft", key: id.slice(at + 1) };
+    };
+
+    root.querySelectorAll<HTMLButtonElement>(
+      "button.ability-remove, button.ability-restore"
+    ).forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.dataset["ability"];
+        if (!id) return;
+        const { grafted, key } = parseAbilityId(id);
+        if (grafted) session.ungraft(Number(key));
+        else session.setAbilityRemoved(key, button.classList.contains("ability-remove"));
+        void this.render();
+      });
+    });
+  }
+
+  /**
+   * Attach an ability to the creature being edited.
+   *
+   * Nothing is written to the world - the item joins the session and only
+   * becomes real when Create is pressed. What the graft did to it is surfaced
+   * immediately, because a DC that moved silently is the failure this whole
+   * module is built to avoid.
+   */
+  async #attach(uuid: string | undefined, session: EditSession): Promise<void> {
+    if (!uuid) return;
+    try {
+      const doc = await fromUuid(uuid);
+      if (!doc) throw new Error("Ability not found");
+
+      const report = session.graft(doc.toObject(), {
+        fromLevel: this.#abilitySourceLevel ?? session.level,
+        sourceUuid: uuid,
+      });
+
+      const moved = report.changes.length
+        ? ` (${report.changes.map((c) => `${c.label} ${c.from}\u2192${c.to}`).join(", ")})`
+        : "";
+      ui.notifications?.info(`Attached ${report.name}${moved}.`);
+      await this.render();
+    } catch (error) {
+      console.error("creatureator | attach failed", error);
+      ui.notifications?.error(`Could not attach that ability: ${(error as Error).message}`);
+    }
   }
 
   /**

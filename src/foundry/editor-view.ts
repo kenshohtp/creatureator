@@ -18,7 +18,15 @@
  */
 
 import { escapeHtml } from "./statblock.js";
-import type { EditField, EditSection, EditSession, DefenceRow } from "../editor/edit-session.js";
+import type {
+  AbilityRow,
+  DefenceRow,
+  EditField,
+  EditSection,
+  EditSession,
+} from "../editor/edit-session.js";
+import type { AbilityEntry } from "./ability-index.js";
+import { actionCostLabel } from "../pf2e/ability.js";
 import type { Band } from "../scaling/bands.js";
 
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -203,7 +211,7 @@ export function renderWarnings(session: EditSession): string {
  * the world until the user presses Create — this screen is the confirmation
  * step, not a preview of one.
  */
-export function renderEditor(session: EditSession): string {
+export function renderEditor(session: EditSession, panel?: AbilityPanel): string {
   const levelLine =
     session.fromLevel === session.toLevel
       ? `Creature ${session.toLevel} — unmodified copy`
@@ -221,7 +229,162 @@ export function renderEditor(session: EditSession): string {
     ${renderWarnings(session)}
     <div class="editor-body">
       ${session.sections().map((s) => section(s, session)).join("")}
+    </div>
+    ${panel ? renderAbilities(session, panel) : ""}`;
+}
+
+
+/* --- abilities ---------------------------------------------------------- */
+
+/**
+ * What the module did to an ability, in one line.
+ *
+ * Rescaled DCs read as the change plus the band they came from, exactly like a
+ * statistic. Everything left alone reads as a plain statement of what was left
+ * and why — a GM who sees "DC 22" appear on a grafted ability deserves to know
+ * it moved, and one who sees a damage expression that did not move deserves to
+ * know that was a decision rather than an oversight.
+ */
+function abilityDetail(row: AbilityRow): string {
+  const changes = row.report?.changes ?? row.rescale?.changes ?? [];
+  const notes = row.report?.notes ?? row.rescale?.notes ?? [];
+  const dropped = row.report?.removedTraits ?? [];
+
+  const parts: string[] = [];
+
+  for (const c of changes) {
+    parts.push(
+      `<span class="ability-change">${escapeHtml(c.label)}
+         <b>${c.from}</b> &rarr; <b>${c.to}</b>
+         <span class="band ${c.band}">${escapeHtml(
+           c.band.charAt(0).toUpperCase() + c.band.slice(1)
+         )}${c.offset ? (c.offset > 0 ? ` +${c.offset}` : ` ${c.offset}`) : ""}</span>
+       </span>`
+    );
+  }
+
+  if (dropped.length) {
+    parts.push(
+      `<span class="ability-note-line">Dropped ${escapeHtml(
+        dropped.join(", ")
+      )} - the current system does not accept ${
+        dropped.length === 1 ? "that trait" : "those traits"
+      }.</span>`
+    );
+  }
+
+  for (const n of notes) {
+    parts.push(`<span class="ability-note-line">${escapeHtml(n.detail)}</span>`);
+  }
+
+  return parts.length ? `<div class="ability-detail">${parts.join("")}</div>` : "";
+}
+
+function abilityListRow(row: AbilityRow): string {
+  const a = row.ability;
+  const id = row.origin === "grafted" ? `graft:${row.graftIndex}` : `own:${a.id}`;
+  const action = row.removed
+    ? `<button type="button" class="ability-restore" data-ability="${escapeHtml(id)}">Restore</button>`
+    : `<button type="button" class="ability-remove" data-ability="${escapeHtml(id)}">Remove</button>`;
+
+  return `
+    <li class="ability-row${row.removed ? " removed" : ""}${
+      row.origin === "grafted" ? " grafted" : ""
+    }" data-ability="${escapeHtml(id)}">
+      <span class="ability-cost">${escapeHtml(actionCostLabel(a))}</span>
+      <span class="ability-name">${escapeHtml(a.name)}</span>
+      <span class="ability-traits">${escapeHtml(a.traits.join(", "))}</span>
+      <span class="ability-origin">${row.origin === "grafted" ? "added" : ""}</span>
+      ${action}
+      ${abilityDetail(row)}
+    </li>`;
+}
+
+export interface AbilityPanel {
+  search: string;
+  results: readonly AbilityEntry[];
+  total: number;
+  loading: boolean;
+  /** The level the ability being attached was written for. */
+  sourceLevel: number;
+}
+
+const PROVENANCE_LABEL: Record<string, string> = {
+  system: "Official",
+  module: "Module",
+  world: "Homebrew",
+};
+
+function resultRow(entry: AbilityEntry): string {
+  const cost =
+    entry.actionType === "action"
+      ? `${entry.actions ?? 1} action${(entry.actions ?? 1) === 1 ? "" : "s"}`
+      : entry.actionType === "free"
+        ? "free action"
+        : entry.actionType;
+
+  return `
+    <li class="ability-result" data-uuid="${escapeHtml(entry.uuid)}">
+      <span class="ability-cost">${escapeHtml(cost)}</span>
+      <span class="ability-name">${escapeHtml(entry.name)}</span>
+      <span class="ability-traits">${escapeHtml(entry.traits.slice(0, 4).join(", "))}</span>
+      <span class="provenance ${entry.provenance}">${
+        PROVENANCE_LABEL[entry.provenance] ?? entry.provenance
+      }</span>
+      <button type="button" class="ability-attach" data-uuid="${escapeHtml(entry.uuid)}">Attach</button>
+    </li>`;
+}
+
+/**
+ * The attach panel.
+ *
+ * "Written for level" is asked rather than assumed. A compendium ability item
+ * carries no level of its own, so there is no way to know what a DC inside it
+ * was balanced against. Defaulting it to the creature's own level means the
+ * default action is to change nothing, and converting is one deliberate edit.
+ */
+export function renderAbilityPanel(panel: AbilityPanel, creatureLevel: number): string {
+  const rows = panel.results.map(resultRow).join("");
+
+  const status = panel.loading
+    ? `<li class="ability-note muted">Reading your compendia...</li>`
+    : panel.search.trim() === ""
+      ? `<li class="ability-note muted">${panel.total} abilities indexed - type to search.</li>`
+      : panel.results.length
+        ? ""
+        : `<li class="ability-note muted">Nothing matches "${escapeHtml(panel.search)}".</li>`;
+
+  return `
+    <div class="ability-add">
+      <div class="ability-add-controls">
+        <input type="search" class="ability-search" placeholder="Search abilities to add"
+               value="${escapeHtml(panel.search)}" aria-label="Search abilities">
+        <label class="ability-source-level">
+          written for level
+          <input type="number" class="ability-level" value="${panel.sourceLevel}"
+                 min="-1" max="24" aria-label="Level the ability was written for">
+        </label>
+      </div>
+      <p class="muted blurb">
+        Attaching rescales any save DC inside the ability from that level to
+        ${creatureLevel}. Leave it as ${creatureLevel} to attach the ability exactly as written.
+      </p>
+      <ol class="ability-results">${status}${rows}</ol>
     </div>`;
+}
+
+export function renderAbilities(session: EditSession, panel: AbilityPanel): string {
+  const rows = session.abilityRows();
+  const list = rows.length
+    ? `<ul class="ability-list">${rows.map(abilityListRow).join("")}</ul>`
+    : `<p class="muted">This creature has no abilities yet.</p>`;
+
+  return `
+    <section class="stat-section abilities" data-section="Abilities">
+      <h4>Abilities</h4>
+      ${list}
+      ${renderAbilityPanel(panel, session.level)}
+    </section>`;
 }
 
 /** Band names, for tests and for anything that needs the option list order. */

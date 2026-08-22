@@ -97,6 +97,10 @@ export interface AbilityRow {
   removed: boolean;
   /** Present for grafted abilities: what happened on the way in. */
   report: GraftReport | null;
+  /** Present for the creature's own: what the rescale did to its DCs. */
+  rescale: RescaleResult["abilityChanges"][number] | null;
+  /** Index into the grafted list, for removal. Grafted rows only. */
+  graftIndex: number | null;
 }
 
 export interface EditSection {
@@ -473,6 +477,8 @@ export class EditSession {
           origin: "chassis" as const,
           removed: this.#removed.has(ability.id),
           report: null,
+          rescale: this.abilityChanges.find((a) => a.itemId === ability.id) ?? null,
+          graftIndex: null,
         };
       });
 
@@ -481,6 +487,8 @@ export class EditSession {
       origin: "grafted" as const,
       removed: false,
       report: g.report,
+      rescale: null,
+      graftIndex: index,
     }));
 
     return [...own, ...added];
