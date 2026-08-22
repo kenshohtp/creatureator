@@ -114,6 +114,8 @@ export class ChassisPicker extends ApplicationV2 {
   #abilitiesLoading = false;
   #abilitySearch = "";
   #abilitySourceLevel: number | null = null;
+  /** Which ability row is open for editing, if any. */
+  #expandedAbility: string | null = null;
 
   #all: ChassisEntry[] = [];
   #state: PickerState = {
@@ -325,6 +327,7 @@ export class ChassisPicker extends ApplicationV2 {
     );
     this.#mode = "edit";
     this.#abilitySourceLevel = null;
+    this.#expandedAbility = null;
     await this.render();
     void this.#loadAbilities();
   }
@@ -372,7 +375,7 @@ export class ChassisPicker extends ApplicationV2 {
     const session = this.#session!;
     return `
       <div class="editor-screen">
-        ${renderEditor(session, this.#abilityPanel())}
+        ${renderEditor(session, this.#abilityPanel(), this.#expandedAbility)}
       </div>
       <footer class="picker-footer">
         <button type="button" class="back">
@@ -413,14 +416,22 @@ export class ChassisPicker extends ApplicationV2 {
    * .stat-input" would drop the user into AC every time they changed a band.
    */
   _replaceHTML(result: string, content: HTMLElement): void {
-    const active = content.querySelector<HTMLInputElement | HTMLSelectElement>(
-      "input:focus, select:focus"
-    );
-    const path = active?.getAttribute("data-path") ?? active?.getAttribute("data-defence");
-    const attr = active?.hasAttribute("data-path") ? "data-path" : "data-defence";
+    const active = content.querySelector<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >("input:focus, select:focus, textarea:focus");
+    const path =
+      active?.getAttribute("data-path") ??
+      active?.getAttribute("data-defence") ??
+      active?.getAttribute("data-ability");
+    const attr = active?.hasAttribute("data-path")
+      ? "data-path"
+      : active?.hasAttribute("data-defence")
+        ? "data-defence"
+        : "data-ability";
     const cls = active?.className.split(/\s+/)[0] ?? null;
     const caret =
-      active instanceof HTMLInputElement && active.type !== "number"
+      active instanceof HTMLTextAreaElement ||
+      (active instanceof HTMLInputElement && active.type !== "number")
         ? active.selectionStart
         : null;
 
@@ -437,7 +448,9 @@ export class ChassisPicker extends ApplicationV2 {
 
     if (restored) {
       restored.focus();
-      if (caret !== null && restored.type !== "number") {
+      if (caret !== null && (restored as HTMLElement).tagName === "TEXTAREA") {
+        (restored as unknown as HTMLTextAreaElement).setSelectionRange(caret, caret);
+      } else if (caret !== null && restored.type !== "number") {
         restored.setSelectionRange(caret, caret);
       }
     } else if (this.#firstRender) {
@@ -712,8 +725,88 @@ export class ChassisPicker extends ApplicationV2 {
         const id = button.dataset["ability"];
         if (!id) return;
         const { grafted, key } = parseAbilityId(id);
-        if (grafted) session.ungraft(Number(key));
-        else session.setAbilityRemoved(key, button.classList.contains("ability-remove"));
+        if (grafted) {
+          session.ungraft(Number(key));
+          this.#expandedAbility = null;
+        } else {
+          session.setAbilityRemoved(key, button.classList.contains("ability-remove"));
+        }
+        void this.render();
+      });
+    });
+
+    // Expand a row to see and edit what the ability actually does.
+    root.querySelectorAll<HTMLButtonElement>("button.ability-name").forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.dataset["ability"];
+        if (!id) return;
+        this.#expandedAbility = this.#expandedAbility === id ? null : id;
+        void this.render();
+      });
+    });
+
+    root.querySelector<HTMLButtonElement>("button.ability-new")
+      ?.addEventListener("click", () => {
+        this.#expandedAbility = session.addAbility();
+        void this.render();
+      });
+
+    this.#activateAbilityForm(root, session);
+  }
+
+  /**
+   * The expanded ability form.
+   *
+   * Text fields commit on `change` rather than on every keystroke: a re-render
+   * would take the caret out of the textarea mid-sentence, and unlike the stat
+   * fields there is no band chip that needs to keep up live.
+   */
+  #activateAbilityForm(root: HTMLElement, session: EditSession): void {
+    const field = (
+      selector: string,
+      name: "name" | "description" | "actionType" | "actions" | "traits",
+      rerender: boolean
+    ) => {
+      root.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        selector
+      ).forEach((input) => {
+        input.addEventListener("change", () => {
+          const id = input.dataset["ability"];
+          if (!id) return;
+          session.setAbilityField(id, name, input.value);
+          if (rerender) void this.render();
+          else this.#patchFooter(root);
+        });
+      });
+    };
+
+    field("input.ability-field-name", "name", true);
+    field("input.ability-field-traits", "traits", true);
+    field("select.ability-field-type", "actionType", true);
+    field("input.ability-actions", "actions", true);
+    // The description re-renders too: a DC typed into the text becomes an
+    // editable field with a band, and that only appears on a re-read.
+    field("textarea.ability-field-text", "description", true);
+
+    root.querySelectorAll<HTMLInputElement>("input.ability-dc-input").forEach((input) => {
+      input.addEventListener("change", () => {
+        const id = input.dataset["ability"];
+        const index = Number(input.dataset["inline"]);
+        if (!id || !Number.isFinite(index)) return;
+        session.setAbilityDC(id, index, Number(input.value));
+        void this.render();
+      });
+    });
+
+    root.querySelectorAll<HTMLSelectElement>("select.ability-dc-band").forEach((select) => {
+      select.addEventListener("change", () => {
+        const id = select.dataset["ability"];
+        const index = Number(select.dataset["inline"]);
+        const band = select.value as Band;
+        if (!id || !band || !Number.isFinite(index)) return;
+        const target = session.abilityDCs(id).find((d) => d.index === index);
+        const option = target?.options.find((o) => o.band === band);
+        if (option) session.setAbilityDC(id, index, option.value);
         void this.render();
       });
     });
@@ -742,6 +835,7 @@ export class ChassisPicker extends ApplicationV2 {
         ? ` (${report.changes.map((c) => `${c.label} ${c.from}\u2192${c.to}`).join(", ")})`
         : "";
       ui.notifications?.info(`Attached ${report.name}${moved}.`);
+      this.#expandedAbility = `graft:${session.graftedCount - 1}`;
       await this.render();
     } catch (error) {
       console.error("creatureator | attach failed", error);

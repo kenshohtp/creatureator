@@ -251,3 +251,125 @@ describe("the abilities section", () => {
     expect(html).toContain("1 action");
   });
 });
+
+/**
+ * Reflavouring: seeing what an ability does, and changing it.
+ *
+ * This is the complaint the whole module exists to answer — "I can't see or
+ * edit what these abilities do, or re-flavour them, which is kind of the
+ * point." A grafted ability and one written from scratch are edited by exactly
+ * the same controls, which is what makes two of the three authoring routes one
+ * feature rather than two.
+ */
+describe("editing an ability", () => {
+  const src = JSON.parse(
+    readFileSync(resolve(import.meta.dirname, "fixtures/ability-creature.json"), "utf8")
+  ) as NPCSource;
+  const session = () => new EditSession(src, rescaleCreature(src, 5));
+  const breathId = "own:breathofthebog01";
+
+  it("shows the text the ability will actually have", () => {
+    const text = session().abilityText(breathId);
+    expect(text).toContain("The bog elder breathes out");
+    expect(text).toContain("dc:22"); // already rescaled
+  });
+
+  it("renames, retitles the cost, and retypes the traits", () => {
+    const s = session();
+    s.setAbilityField(breathId, "name", "Breath of Occam");
+    s.setAbilityField(breathId, "traits", "Kineticist, VOID , ");
+    s.setAbilityField(breathId, "actionType", "reaction");
+
+    const row = s.abilityRows().find((r) => r.rowId === breathId)!;
+    expect(row.ability.name).toBe("Breath of Occam");
+    expect(row.ability.traits).toEqual(["kineticist", "void"]);
+    expect(row.ability.actionType).toBe("reaction");
+    // A reaction has no action count; a stale 2 would render as "2 actions".
+    expect(row.ability.actions).toBeNull();
+  });
+
+  it("gives an action a count, and clamps it to what PF2e allows", () => {
+    const s = session();
+    s.setAbilityField(breathId, "actionType", "action");
+    s.setAbilityField(breathId, "actions", 9);
+    expect(s.abilityRows().find((r) => r.rowId === breathId)!.ability.actions).toBe(3);
+  });
+
+  it("rewrites the description wholesale", () => {
+    const s = session();
+    s.setAbilityField(breathId, "description", "<p>It shrieks. @Check[will|dc:19]</p>");
+    expect(s.abilityText(breathId)).toContain("It shrieks");
+    expect(s.toActorSource().items.find((i) => i["_id"] === "breathofthebog01")!
+      ["system"].description.value).toContain("It shrieks");
+  });
+
+  /** A DC the user typed is still a number that needs its band shown. */
+  it("surfaces the save DCs in the text as editable fields, with bands", () => {
+    const s = session();
+    const dcs = s.abilityDCs(breathId);
+    expect(dcs).toHaveLength(1);
+    expect(dcs[0]).toMatchObject({ label: "Fortitude DC", dc: 22, band: "high", offset: 0 });
+    expect(dcs[0]!.options.map((o) => o.value)).toEqual([26, 22, 19]);
+  });
+
+  it("does not offer a band control for a number no table governs", () => {
+    const s = session();
+    s.setAbilityField(breathId, "description", "@Check[flat|dc:11] @Check[athletics|dc:20]");
+    expect(s.abilityDCs(breathId)).toEqual([]);
+  });
+
+  it("writes an edited DC back into the text without disturbing it", () => {
+    const s = session();
+    expect(s.setAbilityDC(breathId, 1, 26)).toBe(true);
+    const text = s.abilityText(breathId);
+    expect(text).toContain("@Check[fortitude|dc:26|basic]");
+    expect(text).toContain("@Damage[6d6[poison]]");
+    expect(text).toContain("@Check[flat|dc:11]");
+    expect(s.abilityDCs(breathId)[0]!.band).toBe("extreme");
+  });
+
+  it("writes a brand new ability from nothing", () => {
+    const s = session();
+    const id = s.addAbility("Bound to Occam");
+    s.setAbilityField(id, "actionType", "reaction");
+    s.setAbilityField(id, "traits", "occam, leash");
+    s.setAbilityField(id, "description", "<p>The husk cannot move more than 30 feet from Occam.</p>");
+
+    const row = s.abilityRows().find((r) => r.rowId === id)!;
+    expect(row.origin).toBe("authored");
+    expect(row.ability.name).toBe("Bound to Occam");
+
+    const created = s.toActorSource().items.find((i) => i["name"] === "Bound to Occam")!;
+    expect(created["type"]).toBe("action");
+    expect(created["system"].actionType.value).toBe("reaction");
+    expect(created["system"].description.value).toContain("30 feet from Occam");
+  });
+
+  it("counts a reflavour as an edit, and reverts it", () => {
+    const s = session();
+    expect(s.isDirty).toBe(false);
+    s.setAbilityField(breathId, "name", "Something Else");
+    expect(s.isDirty).toBe(true);
+
+    s.resetAll();
+    expect(s.isDirty).toBe(false);
+    expect(s.abilityRows().find((r) => r.rowId === breathId)!.ability.name).toBe(
+      "Breath of the Bog"
+    );
+  });
+
+  it("renders the form with the text and the DC field in it", () => {
+    const s = session();
+    const html = renderAbilities(
+      s,
+      { search: "", results: [], total: 0, loading: false, sourceLevel: 5 },
+      breathId
+    );
+    expect(html).toContain("ability-form");
+    expect(html).toContain("The bog elder breathes out");
+    expect(html).toContain("ability-dc-input");
+    expect(html).toContain("Write a new ability");
+    // Only the open row gets a form.
+    expect(html.match(/ability-form"/g)).toHaveLength(1);
+  });
+});

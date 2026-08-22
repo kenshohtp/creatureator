@@ -522,6 +522,17 @@
  * and squeezing them into a 26rem column made every one of them wrap.
  */
 
+/* Every block that sets an explicit width also states its box model. Foundry
+   sets `box-sizing: border-box` globally and my preview harness does not, which
+   is exactly the kind of difference that makes a layout look fine in one and
+   overflow its container in the other. */
+.creatureator .stat-section.abilities,
+.creatureator .stat-section.abilities *,
+.creatureator .ability-add,
+.creatureator .ability-add * {
+  box-sizing: border-box;
+}
+
 /* `display: block` is not redundant. Foundry's own sheet styles turn some
    sections into flex rows, which put the heading *beside* the list and left the
    rows shrink-wrapped to two thirds of the window. Every block below states its
@@ -689,4 +700,124 @@
 .creatureator .ability-note {
   padding: 0.4rem 0.3rem;
   font-style: italic;
+}
+
+/* --- The ability form ----------------------------------------------------
+ *
+ * Reflavouring is the point of the module: a GM should be able to see what an
+ * ability does, rewrite it, retitle it, and change what it costs, without
+ * leaving this screen. The row is a disclosure; the form is what it discloses.
+ */
+
+.creatureator button.ability-name {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+  line-height: inherit;
+}
+
+.creatureator button.ability-name:hover { text-decoration: underline; }
+.creatureator button.ability-name i { opacity: 0.55; margin-right: 0.3em; }
+
+.creatureator .ability-row.open {
+  background: rgba(0, 0, 0, 0.05);
+  outline: 1px solid var(--color-border-light-tertiary, #7a7971);
+}
+
+.creatureator .ability-form {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.4rem 0 0.5rem;
+}
+
+.creatureator .ability-form-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.creatureator .ability-form label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.creatureator .ability-form label.grow,
+.creatureator .ability-form .grow { flex: 1 1 auto; }
+
+.creatureator .ability-form label > span {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.creatureator .ability-form input[type="text"] { flex: 1 1 auto; min-width: 0; }
+.creatureator input.ability-actions { width: 3rem; text-align: right; }
+.creatureator select.ability-field-type { width: auto; }
+
+.creatureator textarea.ability-field-text {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 6rem;
+  font-family: var(--font-monospace, monospace);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+/* Description sits on its own line rather than beside its label. */
+.creatureator .ability-form label.ability-form-row:has(textarea) {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.creatureator .ability-dcs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+}
+
+.creatureator .ability-dc {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.creatureator .ability-dc-label {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.creatureator input.ability-dc-input { width: 3.5rem; text-align: right; }
+.creatureator select.ability-dc-band { width: auto; font-size: 0.78rem; }
+
+.creatureator .ability-actions-row {
+  display: flex;
+  justify-content: flex-start;
+  margin: 0 0 0.5rem;
+}
+
+.creatureator button.ability-new {
+  width: auto;
+  font-size: 0.8rem;
+  padding: 0 0.6em;
+  line-height: 1.7;
+}
+
+.creatureator .stat-section.abilities h4 .hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
 }

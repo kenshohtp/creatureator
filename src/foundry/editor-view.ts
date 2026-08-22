@@ -19,6 +19,7 @@
 
 import { escapeHtml } from "./statblock.js";
 import type {
+  AbilityDCField,
   AbilityRow,
   DefenceRow,
   EditField,
@@ -211,7 +212,11 @@ export function renderWarnings(session: EditSession): string {
  * the world until the user presses Create — this screen is the confirmation
  * step, not a preview of one.
  */
-export function renderEditor(session: EditSession, panel?: AbilityPanel): string {
+export function renderEditor(
+  session: EditSession,
+  panel?: AbilityPanel,
+  expandedAbility: string | null = null
+): string {
   const levelLine =
     session.fromLevel === session.toLevel
       ? `Creature ${session.toLevel} — unmodified copy`
@@ -230,7 +235,7 @@ export function renderEditor(session: EditSession, panel?: AbilityPanel): string
     <div class="editor-body">
       ${session.sections().map((s) => section(s, session)).join("")}
     </div>
-    ${panel ? renderAbilities(session, panel) : ""}`;
+    ${panel ? renderAbilities(session, panel, expandedAbility) : ""}`;
 }
 
 
@@ -280,23 +285,145 @@ function abilityDetail(row: AbilityRow): string {
   return parts.length ? `<div class="ability-detail">${parts.join("")}</div>` : "";
 }
 
-function abilityListRow(row: AbilityRow): string {
+const ACTION_TYPES: { value: string; label: string }[] = [
+  { value: "passive", label: "Passive" },
+  { value: "action", label: "Actions" },
+  { value: "reaction", label: "Reaction" },
+  { value: "free", label: "Free action" },
+];
+
+/**
+ * A save DC written inside the ability text, as an editable field.
+ *
+ * Editing here rewrites the number inside the description and leaves the rest
+ * of the inline element - `basic`, `options:`, the label - untouched. The band
+ * chip is the same one every other number in the module carries.
+ */
+function abilityDCRow(rowId: string, field: AbilityDCField): string {
+  const chip = field.band
+    ? `<span class="band ${field.band}">${escapeHtml(
+        field.band.charAt(0).toUpperCase() + field.band.slice(1)
+      )}${field.offset ? (field.offset > 0 ? ` +${field.offset}` : ` ${field.offset}`) : ""}</span>`
+    : `<span class="band none">—</span>`;
+
+  const options = field.options
+    .map(
+      (o) =>
+        `<option value="${o.band}"${o.value === field.dc ? " selected" : ""}>${
+          o.band.charAt(0).toUpperCase() + o.band.slice(1)
+        } ${o.value}</option>`
+    )
+    .join("");
+  const unset = field.options.some((o) => o.value === field.dc)
+    ? ""
+    : `<option value="" disabled selected>Set band…</option>`;
+
+  return `
+    <div class="ability-dc" data-ability="${escapeHtml(rowId)}" data-inline="${field.index}">
+      <span class="ability-dc-label">${escapeHtml(field.label)}</span>
+      <input type="number" class="ability-dc-input" step="1" value="${field.dc}"
+             data-ability="${escapeHtml(rowId)}" data-inline="${field.index}"
+             aria-label="${escapeHtml(field.label)}">
+      ${chip}
+      <select class="ability-dc-band" data-ability="${escapeHtml(rowId)}"
+              data-inline="${field.index}" aria-label="Set band for ${escapeHtml(field.label)}">
+        ${unset}${options}
+      </select>
+    </div>`;
+}
+
+/**
+ * The expanded form: what the ability actually is, and every part of it
+ * editable.
+ *
+ * The description is edited as raw text rather than through a rich editor. That
+ * is a deliberate first cut: PF2e writes its numbers as inline elements
+ * (`@Check[fortitude|dc:22]`), and a GM reflavouring an ability needs to see
+ * and keep those. A rich editor hides them behind rendered links.
+ */
+function abilityForm(session: EditSession, row: AbilityRow): string {
   const a = row.ability;
-  const id = row.origin === "grafted" ? `graft:${row.graftIndex}` : `own:${a.id}`;
+  const id = row.rowId;
+  const text = session.abilityText(id);
+  const dcs = session.abilityDCs(id);
+
+  const typeOptions = ACTION_TYPES.map(
+    (t) =>
+      `<option value="${t.value}"${t.value === a.actionType ? " selected" : ""}>${t.label}</option>`
+  ).join("");
+
+  const count =
+    a.actionType === "action"
+      ? `<input type="number" class="ability-actions" min="1" max="3"
+                value="${a.actions ?? 1}" data-ability="${escapeHtml(id)}"
+                aria-label="Number of actions">`
+      : "";
+
+  return `
+    <div class="ability-form">
+      <div class="ability-form-row">
+        <label class="grow">
+          <span>Name</span>
+          <input type="text" class="ability-field-name" value="${escapeHtml(a.name)}"
+                 data-ability="${escapeHtml(id)}" aria-label="Ability name">
+        </label>
+        <label>
+          <span>Cost</span>
+          <select class="ability-field-type" data-ability="${escapeHtml(id)}"
+                  aria-label="Action cost">${typeOptions}</select>
+        </label>
+        ${count}
+      </div>
+
+      <label class="ability-form-row grow">
+        <span>Traits</span>
+        <input type="text" class="ability-field-traits" value="${escapeHtml(a.traits.join(", "))}"
+               data-ability="${escapeHtml(id)}" placeholder="comma separated"
+               aria-label="Traits">
+      </label>
+
+      ${dcs.length ? `<div class="ability-dcs">${dcs.map((d) => abilityDCRow(id, d)).join("")}</div>` : ""}
+
+      <label class="ability-form-row grow">
+        <span>Description</span>
+        <textarea class="ability-field-text" rows="6" data-ability="${escapeHtml(id)}"
+                  aria-label="Ability description"
+                  placeholder="What the ability does. Inline syntax like @Check[fortitude|dc:22] and @Damage[2d6[fire]] is kept exactly as written.">${escapeHtml(text)}</textarea>
+      </label>
+      <p class="muted blurb">
+        Inline elements are preserved and rescaled: a save DC here carries a band
+        like any other number, and flat checks and damage are left alone.
+      </p>
+    </div>`;
+}
+
+function abilityListRow(session: EditSession, row: AbilityRow, expanded: string | null): string {
+  const a = row.ability;
+  const id = row.rowId;
+  const isOpen = expanded === id;
+
   const action = row.removed
     ? `<button type="button" class="ability-restore" data-ability="${escapeHtml(id)}">Restore</button>`
     : `<button type="button" class="ability-remove" data-ability="${escapeHtml(id)}">Remove</button>`;
 
+  const originLabel =
+    row.origin === "authored" ? "new" : row.origin === "grafted" ? "added" : "";
+
   return `
     <li class="ability-row${row.removed ? " removed" : ""}${
-      row.origin === "grafted" ? " grafted" : ""
-    }" data-ability="${escapeHtml(id)}">
+      row.origin === "chassis" ? "" : " grafted"
+    }${isOpen ? " open" : ""}" data-ability="${escapeHtml(id)}">
       <span class="ability-cost">${escapeHtml(actionCostLabel(a))}</span>
-      <span class="ability-name">${escapeHtml(a.name)}</span>
+      <button type="button" class="ability-name" data-ability="${escapeHtml(id)}"
+              aria-expanded="${isOpen}">
+        <i class="fa-solid ${isOpen ? "fa-caret-down" : "fa-caret-right"}" inert></i>
+        ${escapeHtml(a.name)}
+      </button>
       <span class="ability-traits">${escapeHtml(a.traits.join(", "))}</span>
-      <span class="ability-origin">${row.origin === "grafted" ? "added" : ""}</span>
+      <span class="ability-origin">${originLabel}</span>
       ${action}
       ${abilityDetail(row)}
+      ${isOpen && !row.removed ? abilityForm(session, row) : ""}
     </li>`;
 }
 
@@ -373,16 +500,27 @@ export function renderAbilityPanel(panel: AbilityPanel, creatureLevel: number): 
     </div>`;
 }
 
-export function renderAbilities(session: EditSession, panel: AbilityPanel): string {
+export function renderAbilities(
+  session: EditSession,
+  panel: AbilityPanel,
+  expanded: string | null = null
+): string {
   const rows = session.abilityRows();
   const list = rows.length
-    ? `<ul class="ability-list">${rows.map(abilityListRow).join("")}</ul>`
+    ? `<ul class="ability-list">${rows
+        .map((r) => abilityListRow(session, r, expanded))
+        .join("")}</ul>`
     : `<p class="muted">This creature has no abilities yet.</p>`;
 
   return `
     <section class="stat-section abilities" data-section="Abilities">
-      <h4>Abilities</h4>
+      <h4>Abilities <span class="hint muted">— click a name to see and edit what it does</span></h4>
       ${list}
+      <div class="ability-actions-row">
+        <button type="button" class="ability-new">
+          <i class="fa-solid fa-plus" inert></i> Write a new ability
+        </button>
+      </div>
       ${renderAbilityPanel(panel, session.level)}
     </section>`;
 }

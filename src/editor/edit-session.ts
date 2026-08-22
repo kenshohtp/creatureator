@@ -39,10 +39,17 @@ import {
 import {
   graftAbility,
   readAbility,
+  type ActionType,
   type AbilityItem,
   type GraftOptions,
   type GraftReport,
 } from "../pf2e/ability.js";
+import {
+  abilityDCAt,
+  classifyAbilityDC,
+  SCALED_CHECK_TYPES,
+} from "../scaling/rescale-ability.js";
+import { findInlines, withDC, type InlineCheck } from "../pf2e/inline.js";
 import {
   averageDamage,
   isFlat,
@@ -93,14 +100,34 @@ export interface EditField {
 /** One ability on the creature, however it got there. */
 export interface AbilityRow {
   ability: AbilityItem;
-  origin: "chassis" | "grafted";
+  origin: "chassis" | "grafted" | "authored";
   removed: boolean;
   /** Present for grafted abilities: what happened on the way in. */
   report: GraftReport | null;
   /** Present for the creature's own: what the rescale did to its DCs. */
   rescale: RescaleResult["abilityChanges"][number] | null;
-  /** Index into the grafted list, for removal. Grafted rows only. */
+  /** Index into the grafted list, for removal. Added rows only. */
   graftIndex: number | null;
+  /** "own:<itemId>" or "graft:<index>" - how the UI addresses this row. */
+  rowId: string;
+}
+
+/**
+ * A save DC written inside an ability's text, presented as an editable field.
+ *
+ * The same rule as every other number in this module: it carries the band it
+ * sits in, and the bands it could be moved to. A DC a user types into a
+ * reflavoured ability is no less in need of provenance than one the engine
+ * derived.
+ */
+export interface AbilityDCField {
+  /** Position among the inline elements, for writing the edit back. */
+  index: number;
+  label: string;
+  dc: number;
+  band: Band | null;
+  offset: number | null;
+  options: { band: Band; value: number }[];
 }
 
 export interface EditSection {
@@ -140,7 +167,7 @@ export class EditSession {
    * were already rewritten. Edits are applied on top of this rather than on the
    * raw chassis, so a stat edit cannot quietly undo the ability pass.
    */
-  readonly source: NPCSource;
+  source: NPCSource;
   readonly baseline: StatBlock;
   readonly fromLevel: number;
   readonly toLevel: number;
@@ -155,9 +182,11 @@ export class EditSession {
   block: StatBlock;
 
   /** Abilities added by the user, with the report from grafting each. */
-  #grafted: { item: Record<string, any>; report: GraftReport }[] = [];
+  #grafted: { item: Record<string, any>; report: GraftReport; authored?: boolean }[] = [];
   /** Ids of the creature's own abilities the user has removed. */
   #removed = new Set<string>();
+  /** The rescaled actor before any ability was edited, for a full revert. */
+  readonly #pristine: NPCSource;
 
   /**
    * Which damage roll is each Strike's main damage.
@@ -170,6 +199,7 @@ export class EditSession {
 
   constructor(source: NPCSource, result: RescaleResult) {
     this.source = structuredClone(result.actor);
+    this.#pristine = structuredClone(result.actor);
     this.chassis = structuredClone(source);
     this.abilityChanges = result.abilityChanges;
     this.baseline = structuredClone(result.block);
@@ -394,6 +424,7 @@ export class EditSession {
 
   resetAll(): void {
     this.block = structuredClone(this.baseline);
+    this.source = structuredClone(this.#pristine);
     this.#grafted = [];
     this.#removed.clear();
   }
@@ -406,6 +437,7 @@ export class EditSession {
     return (
       this.block.name !== this.baseline.name ||
       this.dirtyPaths.length > 0 ||
+      this.#abilitiesEdited ||
       this.#grafted.length > 0 ||
       this.#removed.size > 0 ||
       this.defenceRows().some((d) => d.dirty)
@@ -479,16 +511,18 @@ export class EditSession {
           report: null,
           rescale: this.abilityChanges.find((a) => a.itemId === ability.id) ?? null,
           graftIndex: null,
+          rowId: `own:${ability.id}`,
         };
       });
 
     const added: AbilityRow[] = this.#grafted.map((g, index) => ({
       ability: { ...readAbility(g.item), id: `grafted-${index}` },
-      origin: "grafted" as const,
+      origin: g.authored ? ("authored" as const) : ("grafted" as const),
       removed: false,
       report: g.report,
       rescale: null,
       graftIndex: index,
+      rowId: `graft:${index}`,
     }));
 
     return [...own, ...added];
@@ -510,6 +544,163 @@ export class EditSession {
     return result.report;
   }
 
+  /**
+   * The item behind a row, so it can be edited in place.
+   *
+   * Returns the live object rather than a copy: reflavouring an ability is the
+   * point of the module, and routing every keystroke through a diff would buy
+   * nothing but ceremony.
+   */
+  #abilityItem(rowId: string): Record<string, any> | null {
+    const at = rowId.indexOf(":");
+    const kind = rowId.slice(0, at);
+    const key = rowId.slice(at + 1);
+
+    if (kind === "graft") return this.#grafted[Number(key)]?.item ?? null;
+    return (
+      (this.source.items ?? []).find(
+        (i) => i["type"] === "action" && String(i["_id"]) === key
+      ) ?? null
+    );
+  }
+
+  /** The raw description of an ability, as it will be written to the actor. */
+  abilityText(rowId: string): string {
+    return String(this.#abilityItem(rowId)?.["system"]?.description?.value ?? "");
+  }
+
+  /**
+   * Edit an ability: its name, its action cost, its traits, its text.
+   *
+   * This is the "copy and modify" and "type it yourself" routes both at once -
+   * an ability grafted from a compendium and one created blank are edited by
+   * exactly the same controls.
+   */
+  setAbilityField(
+    rowId: string,
+    field: "name" | "description" | "actionType" | "actions" | "traits",
+    value: string | number | null
+  ): boolean {
+    const item = this.#abilityItem(rowId);
+    if (!item) return false;
+    item["system"] ??= {};
+
+    switch (field) {
+      case "name":
+        item["name"] = String(value);
+        return true;
+      case "description":
+        item["system"].description ??= {};
+        item["system"].description.value = String(value);
+        return true;
+      case "actionType": {
+        const raw = String(value);
+        const actionType: ActionType =
+          raw === "action" || raw === "reaction" || raw === "free" ? raw : "passive";
+        item["system"].actionType ??= {};
+        item["system"].actionType.value = actionType;
+        // Only a plain action has a count; the others must not keep a stale one.
+        item["system"].actions ??= {};
+        if (actionType !== "action") item["system"].actions.value = null;
+        else if (typeof item["system"].actions.value !== "number") {
+          item["system"].actions.value = 1;
+        }
+        return true;
+      }
+      case "actions": {
+        const n = Number(value);
+        item["system"].actions ??= {};
+        item["system"].actions.value = Number.isFinite(n)
+          ? Math.min(3, Math.max(1, Math.round(n)))
+          : null;
+        return true;
+      }
+      case "traits": {
+        const traits = String(value)
+          .split(",")
+          .map((t) => t.trim().toLowerCase())
+          .filter(Boolean);
+        item["system"].traits ??= {};
+        item["system"].traits.value = traits;
+        return true;
+      }
+    }
+  }
+
+  /**
+   * The save DCs inside an ability's text, as editable fields.
+   *
+   * Only the checks Table 2-11 demonstrably governs are offered - flat checks
+   * and skill DCs are shown by the notes instead, because offering a band
+   * dropdown for a number no table governs would be a lie in the shape of a
+   * control.
+   */
+  abilityDCs(rowId: string): AbilityDCField[] {
+    const text = this.abilityText(rowId);
+    const out: AbilityDCField[] = [];
+
+    findInlines(text).forEach((inline, index) => {
+      if (inline.kind !== "check") return;
+      const check = inline as InlineCheck;
+      if (check.dc === null || check.isFlat) return;
+      if (!SCALED_CHECK_TYPES.has(check.checkType)) return;
+
+      const c = classifyAbilityDC(this.level, check.dc);
+      const options = (["extreme", "high", "moderate"] as Band[]).flatMap((band) => {
+        const value = abilityDCAt(this.level, band);
+        return value === null ? [] : [{ band, value }];
+      });
+
+      out.push({
+        index,
+        label: `${check.checkType.charAt(0).toUpperCase()}${check.checkType.slice(1)} DC`,
+        dc: check.dc,
+        band: c?.band ?? null,
+        offset: c?.offset ?? null,
+        options,
+      });
+    });
+
+    return out;
+  }
+
+  /** Write a DC back into the ability's text, leaving everything else alone. */
+  setAbilityDC(rowId: string, inlineIndex: number, dc: number): boolean {
+    if (!Number.isFinite(dc)) return false;
+    const text = this.abilityText(rowId);
+    const inlines = findInlines(text);
+    const target = inlines[inlineIndex];
+    if (!target || target.kind !== "check") return false;
+
+    const next =
+      text.slice(0, target.start) +
+      withDC(target as InlineCheck, Math.round(dc)) +
+      text.slice(target.end);
+
+    return this.setAbilityField(rowId, "description", next);
+  }
+
+  /** Create a blank ability to write from scratch. */
+  addAbility(name = "New Ability"): string {
+    this.#grafted.push({
+      authored: true,
+      item: {
+        name,
+        type: "action",
+        system: {
+          actionType: { value: "passive" },
+          actions: { value: null },
+          category: null,
+          traits: { value: [] },
+          description: { value: "" },
+          rules: [],
+        },
+      },
+      report: { name, changes: [], notes: [], removedTraits: [] },
+    });
+    return `graft:${this.#grafted.length - 1}`;
+  }
+
   /** Drop a grafted ability, by the index its row reports. */
   ungraft(index: number): boolean {
     if (index < 0 || index >= this.#grafted.length) return false;
@@ -525,6 +716,13 @@ export class EditSession {
 
   get graftedCount(): number {
     return this.#grafted.length;
+  }
+
+  /** True once any of the creature's own abilities has been reflavoured. */
+  get #abilitiesEdited(): boolean {
+    const own = (this.source.items ?? []).filter((i) => i["type"] === "action");
+    const before = (this.#pristine.items ?? []).filter((i) => i["type"] === "action");
+    return JSON.stringify(own) !== JSON.stringify(before);
   }
 
   // --- warnings ----------------------------------------------------------
