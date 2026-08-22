@@ -1,0 +1,31 @@
+{
+  "CREATUREATOR": {
+    "Title": "Creatureator",
+    "Chassis": {
+      "Title": "Choose a chassis",
+      "Search": "Search creatures",
+      "TargetLevel": "Target level",
+      "Provenance": {
+        "system": "Official",
+        "module": "Module",
+        "world": "Homebrew"
+      },
+      "NoResults": "No creatures match those filters.",
+      "OutsideTables": "Level {level} is outside the Building Creatures tables (-1 to 24)."
+    },
+    "Band": {
+      "extreme": "Extreme",
+      "high": "High",
+      "moderate": "Moderate",
+      "low": "Low",
+      "terrible": "Terrible"
+    },
+    "Rescale": {
+      "From": "From",
+      "To": "To",
+      "Offset": "Offset",
+      "Warnings": "Review these",
+      "SameLevel": "Source and target level are the same."
+    }
+  }
+}

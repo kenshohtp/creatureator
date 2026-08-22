@@ -1,0 +1,47 @@
+/* Creatureator
+ *
+ * Placeholder. Real styles arrive with the chassis picker UI.
+ * Band colours are defined now because they are referenced by the design
+ * in ARCHITECTURE.md: every derived number is shown with its band, so the
+ * bands need a consistent visual language from the start.
+ */
+
+.creatureator {
+  --creatureator-band-extreme: #7b2d26;
+  --creatureator-band-high: #a4551f;
+  --creatureator-band-moderate: #6b6b3a;
+  --creatureator-band-low: #3f5c6b;
+  --creatureator-band-terrible: #4a4a52;
+
+  /* A value carried across unchanged from the chassis versus one the user set. */
+  --creatureator-provenance-derived: #6b6b6b;
+  --creatureator-provenance-user: #2f6f4f;
+}
+
+.creatureator .band {
+  display: inline-block;
+  padding: 0 0.35em;
+  border-radius: 3px;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+
+.creatureator .band.extreme { background: var(--creatureator-band-extreme); }
+.creatureator .band.high { background: var(--creatureator-band-high); }
+.creatureator .band.moderate { background: var(--creatureator-band-moderate); }
+.creatureator .band.low { background: var(--creatureator-band-low); }
+.creatureator .band.terrible { background: var(--creatureator-band-terrible); }
+
+/* Offsets are the thing a GM most needs to notice, so they are never silent. */
+.creatureator .offset {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.creatureator .warning {
+  border-left: 3px solid var(--creatureator-band-extreme);
+  padding-left: 0.6em;
+  margin: 0.4em 0;
+}
