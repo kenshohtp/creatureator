@@ -1,11 +1,16 @@
 /**
- * Chassis picker: choose a base creature and a target level.
+ * The builder window: pick a chassis, then edit what it produced.
  *
- * Built on ApplicationV2 with hand-rolled HTML rather than Handlebars parts.
- * That is deliberate: template files need registration and correct paths, and
- * both fail at render time in ways that are awkward to diagnose. A string of
- * markup has fewer moving parts, and this window is not complex enough to earn
- * a template.
+ * Two screens in one ApplicationV2. Screen one chooses a base creature and a
+ * target level; screen two is the editor, and nothing is written to the world
+ * until Create is pressed there. Keeping both in one window means Back is a
+ * real option — a chassis that turns out wrong once you see its numbers is a
+ * click away from being reconsidered, not a lost session.
+ *
+ * Built with hand-rolled HTML rather than Handlebars parts. That is deliberate:
+ * template files need registration and correct paths, and both fail at render
+ * time in ways that are awkward to diagnose. A string of markup has fewer
+ * moving parts.
  *
  * Provenance is shown on every row. A world's compendia can mix Paizo content
  * with premium modules and the GM's own homebrew, and rescaling homebrew
@@ -20,7 +25,16 @@ import {
   type Provenance,
 } from "./chassis.js";
 import { renderRescalePreview, renderStatBlock } from "./statblock.js";
+import {
+  bandSelect,
+  fieldChip,
+  renderEditor,
+  renderWarnings,
+  revertButton,
+} from "./editor-view.js";
+import { EditSession, type DefenceKind } from "../editor/edit-session.js";
 import { rescaleCreature, type RescaleResult } from "../scaling/rescale-creature.js";
+import type { Band } from "../scaling/bands.js";
 import { readStatBlock, type NPCSource } from "../pf2e/npc.js";
 
 declare const foundry: any;
@@ -41,10 +55,14 @@ const PROVENANCE_LABEL: Record<Provenance, string> = {
   world: "Homebrew",
 };
 
-const escape = (s: string) =>
+const escape = (s: unknown) =>
   String(s).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!
   );
+
+/** CSS.escape is not in every environment Foundry runs in. */
+const attrSelector = (attr: string, value: string) =>
+  `[${attr}="${value.replace(/["\\]/g, "\\$&")}"]`;
 
 interface PickerState {
   search: string;
@@ -73,6 +91,10 @@ export class ChassisPicker extends ApplicationV2 {
   #preview: RescaleResult | null = null;
   #previewFor: string | null = null;
   #loading = false;
+
+  /** "pick" is the chassis list; "edit" is the editor over a live session. */
+  #mode: "pick" | "edit" = "pick";
+  #session: EditSession | null = null;
 
   #all: ChassisEntry[] = [];
   #state: PickerState = {
@@ -125,13 +147,7 @@ export class ChassisPicker extends ApplicationV2 {
     void this.render();
 
     try {
-      let source = this.#sources.get(s.selected);
-      if (!source) {
-        const doc = await fromUuid(s.selected);
-        if (!doc) throw new Error("Creature not found");
-        source = doc.toObject() as NPCSource;
-        this.#sources.set(s.selected, source);
-      }
+      const source = await this.#sourceFor(s.selected);
       this.#preview = rescaleCreature(source, s.targetLevel);
       this.#previewFor = key;
     } catch (error) {
@@ -143,6 +159,19 @@ export class ChassisPicker extends ApplicationV2 {
       void this.render();
     }
   }
+
+  async #sourceFor(uuid: string): Promise<NPCSource> {
+    const cached = this.#sources.get(uuid);
+    if (cached) return cached;
+
+    const doc = await fromUuid(uuid);
+    if (!doc) throw new Error("Creature not found");
+    const source = doc.toObject() as NPCSource;
+    this.#sources.set(uuid, source);
+    return source;
+  }
+
+  // --- screen one: the chassis list ---------------------------------------
 
   #previewHtml(selected: ChassisEntry | null): string {
     if (!selected) {
@@ -158,7 +187,7 @@ export class ChassisPicker extends ApplicationV2 {
     return renderRescalePreview(this.#preview);
   }
 
-  async _renderHTML(): Promise<string> {
+  #pickHtml(): string {
     const s = this.#state;
     const results = this.#results();
     const shown = results.slice(0, MAX_ROWS);
@@ -232,15 +261,9 @@ export class ChassisPicker extends ApplicationV2 {
 
       <footer class="picker-footer">
         <div class="selection">${this.#footerText(selected)}</div>
-        <button type="button" class="create" ${selected ? "" : "disabled"}>
-          <i class="fa-solid ${
-            selected && selected.level === s.targetLevel
-              ? "fa-copy"
-              : "fa-wand-magic-sparkles"
-          }" inert></i>
-          <span>${
-            selected && selected.level === s.targetLevel ? "Copy" : "Create"
-          }</span>
+        <button type="button" class="customise" ${selected && this.#preview ? "" : "disabled"}>
+          <span>Customise</span>
+          <i class="fa-solid fa-arrow-right" inert></i>
         </button>
       </footer>`;
   }
@@ -249,8 +272,8 @@ export class ChassisPicker extends ApplicationV2 {
    * Say plainly what the button will do.
    *
    * When the chassis is already at the target level nothing is rescaled, and
-   * the result is a duplicate. Labelling that "Create" implies work that is not
-   * happening - the same silent-adjustment problem in a different guise.
+   * the result is a duplicate. Labelling that as rescaling implies work that is
+   * not happening - the same silent-adjustment problem in a different guise.
    */
   #footerText(selected: ChassisEntry | null): string {
     if (!selected) return `<span class="muted">Select a creature</span>`;
@@ -258,29 +281,103 @@ export class ChassisPicker extends ApplicationV2 {
     const target = this.#state.targetLevel;
     if (selected.level === target) {
       return `<strong>${escape(selected.name)}</strong> is already level ${target}
-              &mdash; this makes an unmodified copy`;
+              &mdash; you will be editing an unmodified copy`;
     }
     const direction = (selected.level ?? 0) < target ? "up" : "down";
     return `Rescaling <strong>${escape(selected.name)}</strong>
             ${direction} from level ${selected.level} to ${target}`;
   }
 
+  // --- screen two: the editor ---------------------------------------------
+
+  async #openEditor(): Promise<void> {
+    const s = this.#state;
+    if (!s.selected) return;
+
+    await this.#loadPreview();
+    if (!this.#preview) {
+      ui.notifications?.error("Could not load that creature.");
+      return;
+    }
+
+    this.#session = new EditSession(
+      await this.#sourceFor(s.selected),
+      this.#preview
+    );
+    this.#mode = "edit";
+    await this.render();
+  }
+
+  #editHtml(): string {
+    const session = this.#session!;
+    return `
+      <div class="editor-screen">
+        ${renderEditor(session)}
+      </div>
+      <footer class="picker-footer">
+        <button type="button" class="back">
+          <i class="fa-solid fa-arrow-left" inert></i>
+          <span>Back</span>
+        </button>
+        <div class="selection">${this.#editFooterText()}</div>
+        <button type="button" class="create">
+          <i class="fa-solid fa-wand-magic-sparkles" inert></i>
+          <span>Create</span>
+        </button>
+      </footer>`;
+  }
+
+  #editFooterText(): string {
+    const session = this.#session!;
+    const edits = session.dirtyPaths.length
+      + session.defenceRows().filter((d) => d.dirty).length;
+    if (!edits) {
+      return `<span class="muted">No edits yet &mdash; Create makes the rescaled creature as shown</span>`;
+    }
+    return `<button type="button" class="revert-all">Revert ${edits} edit${
+      edits === 1 ? "" : "s"
+    }</button>`;
+  }
+
+  async _renderHTML(): Promise<string> {
+    return this.#mode === "edit" && this.#session ? this.#editHtml() : this.#pickHtml();
+  }
+
   #firstRender = true;
 
+  /**
+   * Re-render, putting the caret back where it was.
+   *
+   * Fields are found again by `data-path` rather than by class: the editor has
+   * dozens of inputs sharing a class, and restoring focus to "the first
+   * .stat-input" would drop the user into AC every time they changed a band.
+   */
   _replaceHTML(result: string, content: HTMLElement): void {
-    // Preserve focus and caret across re-renders; without this, typing in the
-    // search box loses the cursor on every keystroke.
-    const active = content.querySelector<HTMLInputElement>("input:focus");
-    const activeClass = active?.className ?? null;
-    const caret = active?.selectionStart ?? null;
+    const active = content.querySelector<HTMLInputElement | HTMLSelectElement>(
+      "input:focus, select:focus"
+    );
+    const path = active?.getAttribute("data-path") ?? active?.getAttribute("data-defence");
+    const attr = active?.hasAttribute("data-path") ? "data-path" : "data-defence";
+    const cls = active?.className.split(/\s+/)[0] ?? null;
+    const caret =
+      active instanceof HTMLInputElement && active.type !== "number"
+        ? active.selectionStart
+        : null;
 
     content.innerHTML = result;
     this.#activate(content);
 
-    if (activeClass) {
-      const restored = content.querySelector<HTMLInputElement>(`input.${activeClass}`);
-      restored?.focus();
-      if (caret !== null && restored?.type === "search") {
+    const restored = path
+      ? content.querySelector<HTMLInputElement>(
+          `${cls ? `.${cls}` : ""}${attrSelector(attr, path)}`
+        )
+      : cls
+        ? content.querySelector<HTMLInputElement>(`input.${cls}`)
+        : null;
+
+    if (restored) {
+      restored.focus();
+      if (caret !== null && restored.type !== "number") {
         restored.setSelectionRange(caret, caret);
       }
     } else if (this.#firstRender) {
@@ -300,6 +397,11 @@ export class ChassisPicker extends ApplicationV2 {
   }
 
   #activate(root: HTMLElement): void {
+    if (this.#mode === "edit" && this.#session) this.#activateEditor(root);
+    else this.#activatePicker(root);
+  }
+
+  #activatePicker(root: HTMLElement): void {
     const s = this.#state;
 
     root.querySelector<HTMLInputElement>("input.search")?.addEventListener("input", (ev) => {
@@ -307,10 +409,7 @@ export class ChassisPicker extends ApplicationV2 {
       this.#rerender();
     });
 
-    const numeric = (
-      selector: string,
-      apply: (value: number | null) => void
-    ) => {
+    const numeric = (selector: string, apply: (value: number | null) => void) => {
       root.querySelector<HTMLInputElement>(selector)?.addEventListener("change", (ev) => {
         const raw = (ev.target as HTMLInputElement).value;
         apply(raw === "" ? null : Number(raw));
@@ -343,40 +442,230 @@ export class ChassisPicker extends ApplicationV2 {
       });
       li.addEventListener("dblclick", () => {
         s.selected = li.dataset["uuid"] ?? null;
-        void this.#create();
+        void this.#openEditor();
       });
     });
+
+    root.querySelector<HTMLButtonElement>("button.customise")
+      ?.addEventListener("click", () => void this.#openEditor());
+  }
+
+  // --- editor wiring ------------------------------------------------------
+
+  /**
+   * Update one row without re-rendering it.
+   *
+   * The input the user is typing in is left alone; only the band chip, the band
+   * dropdown and the revert control are replaced. Re-rendering the row would
+   * take the caret with it, and a stat block where you cannot type "2" on the
+   * way to "21" without losing your place is not editable in any real sense.
+   */
+  #patchField(root: HTMLElement, path: string): void {
+    const session = this.#session;
+    if (!session) return;
+
+    const row = root.querySelector<HTMLElement>(
+      `tr.edit-row${attrSelector("data-path", path)}`
+    );
+    const field = session.field(path);
+    if (!row || !field) return;
+
+    row.classList.toggle("dirty", field.dirty);
+
+    const chip = row.querySelector<HTMLElement>(".band-cell");
+    if (chip) chip.innerHTML = fieldChip(field);
+
+    const pick = row.querySelector<HTMLElement>(".band-pick");
+    if (pick && document.activeElement?.closest(".band-pick") !== pick) {
+      pick.innerHTML = bandSelect(field);
+      this.#bindBandSelect(pick);
+    }
+
+    const was = row.querySelector<HTMLElement>(".was");
+    if (was) {
+      was.innerHTML = revertButton(field);
+      this.#bindRevert(was);
+    }
+
+    this.#patchWarnings(root);
+    this.#patchFooter(root);
+  }
+
+  #patchWarnings(root: HTMLElement): void {
+    const session = this.#session;
+    const host = root.querySelector<HTMLElement>("section.warnings");
+    if (!session || !host) return;
+
+    const fresh = document.createElement("div");
+    fresh.innerHTML = renderWarnings(session);
+    const next = fresh.firstElementChild;
+    if (next) host.replaceWith(next);
+  }
+
+  #patchFooter(root: HTMLElement): void {
+    const footer = root.querySelector<HTMLElement>("footer.picker-footer .selection");
+    if (!footer) return;
+    footer.innerHTML = this.#editFooterText();
+    footer
+      .querySelector<HTMLButtonElement>("button.revert-all")
+      ?.addEventListener("click", () => {
+        this.#session?.resetAll();
+        void this.render();
+      });
+  }
+
+  #bindBandSelect(scope: ParentNode): void {
+    scope.querySelectorAll<HTMLSelectElement>("select.band-select").forEach((select) => {
+      select.addEventListener("change", () => {
+        const path = select.dataset["path"];
+        const band = select.value as Band;
+        if (!path || !band) return;
+        this.#session?.setBand(path, band);
+        void this.render();
+      });
+    });
+  }
+
+  #bindRevert(scope: ParentNode): void {
+    scope.querySelectorAll<HTMLButtonElement>("button.revert").forEach((button) => {
+      button.addEventListener("click", () => {
+        const path = button.dataset["path"];
+        if (!path) return;
+        this.#session?.reset(path);
+        void this.render();
+      });
+    });
+  }
+
+  #activateEditor(root: HTMLElement): void {
+    const session = this.#session!;
+
+    root.querySelector<HTMLInputElement>("input.creature-name")
+      ?.addEventListener("input", (ev) => {
+        session.rename((ev.target as HTMLInputElement).value);
+      });
+
+    root.querySelectorAll<HTMLInputElement>("input.stat-input").forEach((input) => {
+      const path = input.dataset["path"];
+      if (!path) return;
+
+      // Live band re-derivation on every keystroke, patched in place.
+      input.addEventListener("input", () => {
+        if (session.set(path, input.value)) this.#patchField(root, path);
+      });
+      // On commit, re-render so a rounded or rejected value shows what stuck.
+      input.addEventListener("change", () => {
+        session.set(path, input.value);
+        void this.render();
+      });
+    });
+
+    this.#bindBandSelect(root);
+    this.#bindRevert(root);
+
+    const parseDefence = (id: string): [DefenceKind, string] => {
+      const at = id.indexOf(":");
+      return [id.slice(0, at) as DefenceKind, id.slice(at + 1)];
+    };
+
+    root.querySelectorAll<HTMLInputElement>("input.defence-input").forEach((input) => {
+      input.addEventListener("change", () => {
+        const id = input.dataset["defence"];
+        if (!id) return;
+        const [kind, type] = parseDefence(id);
+        session.setDefence(kind, type, Number(input.value));
+        void this.render();
+      });
+    });
+
+    root.querySelectorAll<HTMLButtonElement>(
+      "button.defence-remove, button.defence-restore"
+    ).forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.dataset["defence"];
+        if (!id) return;
+        const [kind, type] = parseDefence(id);
+        const restoring = button.classList.contains("defence-restore");
+        const row = session.defenceRows().find((d) => d.kind === kind && d.type === type);
+        session.setDefence(kind, type, restoring ? (row?.baseline ?? 0) : null);
+        void this.render();
+      });
+    });
+
+    root.querySelector<HTMLButtonElement>("button.defence-add-button")
+      ?.addEventListener("click", () => {
+        const kind = root.querySelector<HTMLSelectElement>(".defence-add-kind")?.value;
+        const type = root.querySelector<HTMLInputElement>(".defence-add-type")?.value.trim();
+        const value = Number(root.querySelector<HTMLInputElement>(".defence-add-value")?.value);
+        if (!kind || !type || !Number.isFinite(value)) {
+          ui.notifications?.warn("Give the weakness a damage type and a value.");
+          return;
+        }
+        session.setDefence(kind as DefenceKind, type.toLowerCase(), value);
+        void this.render();
+      });
+
+    root.querySelector<HTMLButtonElement>("button.revert-all")
+      ?.addEventListener("click", () => {
+        session.resetAll();
+        void this.render();
+      });
+
+    root.querySelector<HTMLButtonElement>("button.back")
+      ?.addEventListener("click", () => void this.#back());
 
     root.querySelector<HTMLButtonElement>("button.create")
       ?.addEventListener("click", () => void this.#create());
   }
 
-  async #create(): Promise<void> {
-    const s = this.#state;
-    if (!s.selected) return;
-
-    const api = game.creatureator;
-    if (!api?.rescale) {
-      ui.notifications?.error("Creatureator API unavailable.");
-      return;
+  /**
+   * Return to the chassis list.
+   *
+   * Edits are dropped, so ask first when there are any. The session is not kept
+   * around: coming back from a different chassis and finding the old creature's
+   * edits half-applied would be worse than losing them.
+   */
+  async #back(): Promise<void> {
+    const session = this.#session;
+    if (session?.isDirty) {
+      const ok = await foundry.applications.api.DialogV2.confirm({
+        window: { title: "Discard edits?" },
+        content: `<p>Going back discards your edits to <strong>${escape(
+          session.name
+        )}</strong>.</p>`,
+      });
+      if (!ok) return;
     }
+    this.#session = null;
+    this.#mode = "pick";
+    await this.render();
+  }
+
+  async #create(): Promise<void> {
+    const session = this.#session;
+    if (!session) return;
 
     try {
-      const result = await api.rescale(s.selected, s.targetLevel, { create: true });
-      const name = result?.created?.name ?? "Creature";
-      const warnings = result?.warnings?.length ?? 0;
+      console.log(session.summarise());
+      const warnings = session.warnings();
+      if (warnings.length) {
+        console.warn(
+          `creatureator | ${warnings.length} thing(s) to review`,
+          warnings
+        );
+      }
 
-      // Surface warnings rather than leaving them in a returned object. The
-      // HP-versus-weakness case in particular produces a number that looks
-      // wrong on the sheet, and the reason belongs in front of the user.
-      if (warnings) {
+      const created = await game.actors.documentClass.create(session.toActorSource());
+      if (warnings.length) {
         ui.notifications?.warn(
-          `${name} created with ${warnings} thing${warnings === 1 ? "" : "s"} to review - see console.`
+          `${created?.name} created with ${warnings.length} thing${
+            warnings.length === 1 ? "" : "s"
+          } to review - see console.`
         );
       } else {
-        ui.notifications?.info(`${name} created.`);
+        ui.notifications?.info(`${created?.name} created.`);
       }
-      result?.created?.sheet?.render(true);
+      created?.sheet?.render(true);
       await this.close();
     } catch (error) {
       console.error("creatureator | create failed", error);

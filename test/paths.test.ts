@@ -10,11 +10,12 @@ import { resolve } from "node:path";
 import {
   getNumberAt,
   getStringAt,
+  prettyPath,
   setAt,
   tableForPath,
   isFormulaPath,
 } from "../src/pf2e/paths.js";
-import { readStatBlock, type NPCSource } from "../src/pf2e/npc.js";
+import { readStatBlock, type NPCSource, type StatBlock } from "../src/pf2e/npc.js";
 import { rescaleCreature } from "../src/scaling/rescale-creature.js";
 
 const load = (name: string) =>
@@ -124,5 +125,97 @@ describe("engine paths are all addressable", () => {
         `write ${change.path}`
       ).toBe(true);
     }
+  });
+});
+
+/**
+ * Damage addressing.
+ *
+ * `system.damageRolls` is an object keyed by random id, so the rider comes
+ * first about as often as it comes second — in the bestiary, Fortune Dragon's
+ * Tail lists "1d6" force before "4d10+15" bludgeoning. A path that meant
+ * "damage[0]" would edit the wrong roll on every such creature, silently.
+ */
+describe("damage paths", () => {
+  const dragonish = (): StatBlock => ({
+    name: "Fortune Dragonish",
+    level: 10,
+    ac: 30,
+    hp: 200,
+    perception: 20,
+    saves: { fortitude: 20, reflex: 18, will: 22 },
+    abilities: { str: 6, dex: 3, con: 5, int: 3, wis: 4, cha: 5 },
+    skills: {},
+    strikes: [
+      {
+        itemId: "tail0001",
+        name: "Tail",
+        attack: 24,
+        ranged: false,
+        traits: [],
+        damage: [
+          { id: "aaa", formula: "1d6", damageType: "force", category: null },
+          { id: "bbb", formula: "4d10+15", damageType: "bludgeoning", category: null },
+        ],
+      },
+    ],
+    spellcasting: [],
+    weaknesses: [],
+    resistances: [],
+  });
+
+  it("resolves the bare damage path to the main damage, not to index 0", () => {
+    expect(getStringAt(dragonish(), "strikes.Tail.damage")).toBe("4d10+15");
+  });
+
+  it("writes the main damage even when it is not first", () => {
+    const block = dragonish();
+    expect(setAt(block, "strikes.Tail.damage", "5d10+20")).toBe(true);
+    expect(block.strikes[0]!.damage[0]!.formula).toBe("1d6");
+    expect(block.strikes[0]!.damage[1]!.formula).toBe("5d10+20");
+  });
+
+  it("addresses a specific roll by index, which is how riders get edited", () => {
+    const block = dragonish();
+    expect(getStringAt(block, "strikes.Tail.damage.0")).toBe("1d6");
+    expect(setAt(block, "strikes.Tail.damage.0", "2d6")).toBe(true);
+    expect(block.strikes[0]!.damage[0]!.formula).toBe("2d6");
+    expect(block.strikes[0]!.damage[1]!.formula).toBe("4d10+15");
+  });
+
+  it("reports a roll that is not there instead of creating one", () => {
+    expect(setAt(dragonish(), "strikes.Tail.damage.7", "1d4")).toBe(false);
+    expect(getStringAt(dragonish(), "strikes.Tail.damage.7")).toBeNull();
+  });
+
+  it("recognises indexed damage paths as formulas and routes them to Table 2-10", () => {
+    expect(isFormulaPath("strikes.Tail.damage.1")).toBe(true);
+    expect(isFormulaPath("strikes.Tail.attack")).toBe(false);
+    expect(tableForPath("strikes.Tail.damage.1")).toBe("strikeDamage");
+  });
+
+  it("survives a Strike whose name contains a dot", () => {
+    const block = dragonish();
+    block.strikes[0]!.name = "Dr. Chill's Cane";
+    expect(getStringAt(block, "strikes.Dr. Chill's Cane.damage")).toBe("4d10+15");
+    expect(setAt(block, "strikes.Dr. Chill's Cane.attack", 30)).toBe(true);
+    expect(block.strikes[0]!.attack).toBe(30);
+  });
+});
+
+describe("prettyPath", () => {
+  it("names every kind of path the way a stat block does", () => {
+    expect(prettyPath("ac")).toBe("AC");
+    expect(prettyPath("saves.fortitude")).toBe("Fortitude save");
+    expect(prettyPath("abilities.str")).toBe("STR");
+    expect(prettyPath("skills.athletics")).toBe("Athletics");
+    expect(prettyPath("strikes.Fist.attack")).toBe("Fist attack");
+    expect(prettyPath("strikes.Fist.damage.1")).toBe("Fist damage");
+    expect(prettyPath("spellcasting.Arcane Prepared Spells.dc")).toBe(
+      "Arcane Prepared Spells DC"
+    );
+    expect(prettyPath("spellcasting.Arcane Prepared Spells.attack")).toBe(
+      "Arcane Prepared Spells spell attack"
+    );
   });
 });

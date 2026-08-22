@@ -163,6 +163,43 @@ preservation is load-bearing, not polish.
 The target statblock gives the regression assertions: AC 22 (= L5 high), Grave Blast
 +15 (= L5 high), slam +16 (L5 high +1 — the offset that must survive the round trip).
 
+### Layer 2b — Editing (pure, testable, no Foundry dependency)
+
+`src/editor/edit-session.ts`. Rescaling answers "what would this creature look like
+at level 5?"; it does not answer "what do I actually want?" — and the reference
+creature proves the two differ (§7.5).
+
+An `EditSession` holds three things at once:
+
+- the **baseline**: the creature exactly as the rescale produced it,
+- the **working block**: the creature as the user has since edited it,
+- for every statistic, the **band it currently sits in**, re-derived on every
+  keystroke — so a hand-typed number is never a number without provenance.
+
+It exposes the stat block as a list of `EditField`s (value, baseline, dirty flag,
+band, offset, and the bands available at this level with the figure each would
+produce), plus `set`, `setBand`, `reset`/`resetAll`, weakness and resistance
+editing, live `warnings()`, and `toActorSource()`. Nothing is written to the world
+until the user presses Create.
+
+Three rules it enforces:
+
+- **A band override drops the inherited offset.** An offset records that the
+  *chassis* sat deliberately above its band; once the user picks a band by hand,
+  that intent has been replaced by theirs.
+- **Only a Strike's main dice damage is banded.** Riders and flat damage are
+  editable but carry no band, because Table 2-10 does not describe them. Damage is
+  addressed by explicit roll index (`strikes.Fist.damage.0`), and the *main* roll is
+  found through `primaryDamageIndex()` — never by taking index 0 (§7.6).
+- **Warnings are re-derived, never inherited.** The HP-versus-weakness warning
+  disappears the moment the user actually addresses it. A warning that survives
+  being addressed teaches people to ignore warnings.
+
+Rendering lives in `src/foundry/editor-view.ts` — pure string building like
+`statblock.ts`, so the markup rules ("every editable number has a band chip", "the
+rescaled value is never thrown away") are asserted in unit tests rather than only
+eyeballed in a running game.
+
 ### Layer 3 — Ability grafting
 
 Search for an ability, then attach it. Resolution order:
@@ -203,9 +240,12 @@ is most of the actual product. Sequence:
 1. **Stat block rendering + preview pane** — show the chassis as it is and as it would
    be at the target level, side by side with bands and warnings. Fixes picking blind,
    and the renderer is what the editor is built on.
-2. **Editor** — every number editable, band shown, one-click band override, HP and
-   weaknesses presented together (see §7.5). Creation happens only on confirmation.
+2. **Editor** — DONE. Every number editable, band shown and re-derived live,
+   one-click band override, HP and weaknesses presented together (see §7.5),
+   rename, and creation only on confirmation. Screen two of the same window as the
+   picker, so Back is a real option.
 3. **Ability grafting** — search, attach, and the three authoring routes above.
+   This is the next build, and the remaining bulk of the product.
 
 ---
 
@@ -324,8 +364,22 @@ This becomes a general principle, not just an HP rule — every derived number i
 UI carries its band label and a visible provenance ("Moderate, from chassis" vs.
 "High, set by you").
 
-Encoded as `describe.todo` blocks in `test/scaling.test.ts` so the divergence stays
-visible in test output instead of rotting in a doc.
+**Implemented (22 Aug 2026).** A and C both shipped with the editor:
+
+- The engine still rescales faithfully — AC 17 @ L2 becomes 21, not 22.
+- Every statistic shows its band and offset, and a dropdown offers each band the
+  table defines at that level *with the figure it would produce*. For the tables
+  GM Core writes as ranges the whole span is shown ("Moderate 72 (72–78)"), because
+  a user who can see the bracket can pick 75 on purpose instead of reading the
+  threshold as the only correct answer.
+- HP and weaknesses are rendered as one block, with the trade spelled out, and the
+  HP warning names the current numbers and clears when the decision is made.
+
+The `describe.todo` blocks are now real tests. `test/scaling.test.ts` asserts that
+pure rescaling still lands on 21 AC and 110 HP; `test/edit-session.test.ts` asserts
+that the editor reproduces Dan's hand-built creature exactly — AC 22, HP 75, both
+weaknesses removed, name changed, everything else untouched — and that it can still
+explain every number it produced afterwards.
 
 ### 7.6 Findings from the live bestiary
 

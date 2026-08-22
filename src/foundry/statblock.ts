@@ -15,6 +15,7 @@
 
 import type { RescaleResult, StatChange } from "../scaling/rescale-creature.js";
 import type { StatBlock } from "../pf2e/npc.js";
+import { prettyPath } from "../pf2e/paths.js";
 
 export const escapeHtml = (s: unknown): string =>
   String(s).replace(/[&<>"']/g, (c) =>
@@ -33,29 +34,14 @@ export function bandChip(change: StatChange): string {
   return `<span class="band ${change.band}">${escapeHtml(bandLabel(change))}</span>`;
 }
 
-/** Human-friendly name for a change path. */
-export function prettyPath(path: string): string {
-  const parts = path.split(".");
-  const head = parts[0];
-
-  if (head === "saves") return `${capitalise(parts[1] ?? "")} save`;
-  if (head === "abilities") return (parts[1] ?? "").toUpperCase();
-  if (head === "skills") return capitalise(parts[1] ?? "");
-  if (head === "strikes") {
-    const what = parts[2] === "attack" ? "attack" : "damage";
-    return `${parts[1]} ${what}`;
-  }
-  if (head === "spellcasting") {
-    const what = parts[parts.length - 1] === "dc" ? "DC" : "spell attack";
-    return `${parts.slice(1, -1).join(".")} ${what}`;
-  }
-  if (head === "ac") return "AC";
-  if (head === "hp") return "HP";
-  if (head === "perception") return "Perception";
-  return path;
-}
-
-const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/**
+ * Human-friendly name for a change path.
+ *
+ * Re-exported rather than reimplemented: `paths.ts` is the single place that
+ * knows what a path means, and a second copy here would drift the moment a new
+ * kind of path is added.
+ */
+export { prettyPath } from "../pf2e/paths.js";
 
 /** Groups changes into the sections a GM reads a stat block in. */
 export function groupChanges(changes: readonly StatChange[]) {

@@ -11,6 +11,7 @@
  */
 
 import {
+  BAND_ORDER,
   classify,
   parseCellOrNull,
   reemit,
@@ -151,19 +152,33 @@ function stepWith(
 }
 
 /**
+ * Which table row applies, allowing for Table 2-11's paired columns.
+ *
+ * Everywhere else a level row is keyed by plain band names; the Spell DC table
+ * pairs two statistics per band, so it has to be projected first.
+ */
+function rowAt(table: TableKey, level: number, which: "dc" | "attack"): Row {
+  return table === "spellDC" ? spellRow(level, which) : rowFor(table, level);
+}
+
+/**
  * Classify a value against a table at a given level.
  *
  * Used by the editor to re-derive a band when the user types a number by hand,
  * so an edited statistic still shows where it sits rather than losing its band.
+ *
+ * `which` selects the half of Table 2-11 that applies and is ignored by every
+ * other table. Without it a spell *attack* modifier would be classified against
+ * the DC columns and read three bands too low.
  */
 export function classifyAt(
   table: TableKey,
   level: number,
-  value: number
+  value: number,
+  which: "dc" | "attack" = "dc"
 ): { band: Band; offset: number } | null {
   try {
-    const row = table === "spellDC" ? spellRow(level, "dc") : rowFor(table, level);
-    return classify(value, row);
+    return classify(value, rowAt(table, level, which));
   } catch {
     return null;
   }
@@ -177,8 +192,84 @@ export function bandValueAt(
   which: "dc" | "attack" = "dc"
 ): number | null {
   try {
-    const row = table === "spellDC" ? spellRow(level, which) : rowFor(table, level);
-    return Math.round(reemit({ band, offset: 0 }, row));
+    return Math.round(reemit({ band, offset: 0 }, rowAt(table, level, which)));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The bands a table actually offers at a level, best first.
+ *
+ * Not every table has five, and the set changes with level: attribute
+ * modifiers have no Extreme band at levels -1 and 0, where GM Core writes an
+ * em-dash. Offering a band the table cannot produce would put a choice in
+ * front of the user that the engine then refuses.
+ */
+export function bandsAt(
+  table: TableKey,
+  level: number,
+  which: "dc" | "attack" = "dc"
+): Band[] {
+  let row: Row;
+  try {
+    row = rowAt(table, level, which);
+  } catch {
+    return [];
+  }
+  return BAND_ORDER.filter((b) => {
+    const raw = row[b];
+    return raw !== undefined && parseCellOrNull(raw) !== null;
+  });
+}
+
+/**
+ * The published span of a band, for tables that give one.
+ *
+ * Hit Points and Skills are written as ranges ("78-72"), so a band is a
+ * bracket rather than a single number. The engine treats the low end as the
+ * threshold; the editor shows the whole span, because a user who knows
+ * Moderate HP runs 72 to 78 at level 5 can pick a number inside it on purpose
+ * instead of reading 72 as the only "correct" answer.
+ */
+export function bandRangeAt(
+  table: TableKey,
+  level: number,
+  band: Band,
+  which: "dc" | "attack" = "dc"
+): { min: number; max: number } | null {
+  try {
+    const raw = rowAt(table, level, which)[band];
+    const cell = raw === undefined ? null : parseCellOrNull(raw);
+    return cell?.kind === "range" ? { min: cell.min, max: cell.max } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The dice expression Table 2-10 publishes for a band at a level.
+ *
+ * Returned as the table writes it ("2d8+7"). Callers that are re-expressing an
+ * existing Strike hand this to `rescaleDamageFormula` so the chassis's die size
+ * survives and only the count and modifier come from the table.
+ */
+export function bandFormulaAt(level: number, band: Band): string | null {
+  try {
+    const raw = rowFor("strikeDamage", level)[band];
+    const cell = raw === undefined ? null : parseCellOrNull(raw);
+    return cell?.kind === "damage" ? cell.expr : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The average damage Table 2-10 publishes for a band at a level. */
+export function bandDamageAverageAt(level: number, band: Band): number | null {
+  try {
+    const raw = rowFor("strikeDamage", level)[band];
+    const cell = raw === undefined ? null : parseCellOrNull(raw);
+    return cell?.kind === "damage" ? cell.average : null;
   } catch {
     return null;
   }

@@ -216,6 +216,31 @@ export function readStatBlock(src: NPCSource): StatBlock {
  * flags, non-Strike items) is carried through untouched, which is the whole
  * reason for cloning a compendium actor rather than building one from scratch.
  */
+/**
+ * Write weaknesses or resistances back, preserving anything else PF2e stores
+ * on the entry.
+ *
+ * These are editable because GM Core explicitly trades them against Hit Points:
+ * dropping a creature's numeric weakness is the same decision as lowering its
+ * HP band, and the editor presents them together. Entries carry more than a
+ * type and a value (`exceptions`, `doubleVs`), so a surviving entry is amended
+ * in place rather than rebuilt — only removals actually drop anything.
+ */
+function writeTypedValues(
+  attrs: Record<string, any> | undefined,
+  key: "weaknesses" | "resistances",
+  values: { type: string; value: number }[]
+): void {
+  if (!attrs) return;
+  const existing: Record<string, any>[] = Array.isArray(attrs[key]) ? attrs[key] : [];
+  const byType = new Map(existing.map((e) => [String(e["type"]), e]));
+
+  attrs[key] = values.map((v) => {
+    const prior = byType.get(v.type);
+    return prior ? { ...prior, value: v.value } : { type: v.type, value: v.value };
+  });
+}
+
 export function applyStatBlock(src: NPCSource, block: StatBlock): NPCSource {
   const out = structuredClone(src) as NPCSource;
   const sys = out.system;
@@ -250,6 +275,9 @@ export function applyStatBlock(src: NPCSource, block: StatBlock): NPCSource {
   for (const [slug, value] of Object.entries(block.skills)) {
     if (sys["skills"]?.[slug]) sys["skills"][slug].base = value;
   }
+
+  writeTypedValues(sys["attributes"], "weaknesses", block.weaknesses);
+  writeTypedValues(sys["attributes"], "resistances", block.resistances);
 
   const byId = new Map(block.strikes.map((s) => [s.itemId, s]));
   for (const item of out.items ?? []) {

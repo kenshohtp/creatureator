@@ -134,19 +134,32 @@ describe("rescale — level 2 to level 5", () => {
 /**
  * Known divergences from the reference statblock.
  *
- * These are documented, not fixed, because they are authoring decisions the
- * engine should not make silently. See ARCHITECTURE.md §7.5.
+ * These were `describe.todo` while the answer was undecided. The decision, made
+ * in ARCHITECTURE.md §7.5, is that the engine rescales faithfully and the
+ * *editor* is where an author overrides it — so what is asserted here is that
+ * pure rescaling still lands where it lands, and the tests that reproduce Dan's
+ * actual creature live in `edit-session.test.ts` alongside the machinery that
+ * makes those calls.
  */
-describe.todo("band drift — needs a product decision", () => {
-  it("AC moved moderate -> high between the chassis and the target", () => {
+describe("band drift — decided: the engine reports, the editor overrides", () => {
+  it("AC rescales faithfully to moderate, and does not chase the author's high", () => {
     // Husk Zombie AC 17 = L2 moderate. Occam's husk AC 22 = L5 high.
-    // Pure rescaling yields 21. The author upgraded the band deliberately.
+    // Rescaling gives 21; the upgrade to 22 is an authoring decision, made in
+    // the editor with one click and shown as a band change.
+    expect(rescale("armorClass", 17, 2, 5)).toBe(21);
+    expect(rowFor("armorClass", 5)["high"]).toBe(22);
   });
 
-  it("HP dropped high+15 -> moderate when the weakness was removed", () => {
-    // Husk Zombie 55 HP at L2 sits far above high (40-36) because it carries
-    // "positive 5, slashing 5". Occam's husk has no numeric weakness and 75 HP,
-    // which is L5 moderate (78-72). HP cannot be rescaled independently of
-    // weaknesses.
+  it("HP carries its weakness-funded offset rather than quietly dropping it", () => {
+    // 55 HP at L2 sits 19 above high (40-36) because the creature carries
+    // "vitality 5, slashing 5". Rescaled that becomes 110 — visibly odd, and
+    // deliberately so: the editor pairs HP with the weaknesses that paid for
+    // it, and dropping them is what lets HP fall to moderate (78-72).
+    expect(rescale("hitPoints", 55, 2, 5)).toBe(110);
+    expect(parseCell(rowFor("hitPoints", 5)["moderate"]!)).toEqual({
+      kind: "range",
+      min: 72,
+      max: 78,
+    });
   });
 });

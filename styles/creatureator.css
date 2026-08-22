@@ -290,3 +290,223 @@
   padding-left: 0.6em;
   margin: 0.4em 0;
 }
+
+/* --- Editor --------------------------------------------------------------
+ *
+ * Screen two of the same window. The columns are fixed rather than fluid so
+ * the band chips line up down the page: scanning a column of bands is how a
+ * GM spots the one statistic that drifted, and ragged chips defeat that.
+ */
+
+.creatureator-picker .editor-screen {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 0.4rem;
+}
+
+.creatureator .editor-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--color-border-light-tertiary, #7a7971);
+}
+
+.creatureator .name-field {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1 1 auto;
+}
+
+.creatureator .name-field span {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+.creatureator input.creature-name {
+  flex: 1 1 auto;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.creatureator .editor-header .level-change {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.creatureator .warnings.hidden { display: none; }
+
+/* Two columns of sections on a wide window; the editor is long and a single
+   column pushes Strikes and Spellcasting below the fold on every creature.
+   Multi-column rather than grid, so a tall section (Defences, which carries
+   the weakness block) does not strand an empty half-page beside it. */
+.creatureator .editor-body {
+  column-width: 26rem;
+  column-gap: 1.5rem;
+  padding-top: 0.5rem;
+}
+
+.creatureator .editor-body .stat-section {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.creatureator .edit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.creatureator .edit-table th {
+  text-align: left;
+  font-weight: 500;
+  padding: 0.15rem 0.3rem 0.15rem 0;
+  white-space: nowrap;
+}
+
+.creatureator .edit-table td {
+  padding: 0.15rem 0.3rem;
+  vertical-align: top;
+}
+
+.creatureator .edit-table td.value { width: 7.5rem; }
+.creatureator .edit-table td.band-cell { width: 1%; white-space: nowrap; }
+.creatureator .edit-table td.band-pick { width: 9rem; }
+.creatureator .edit-table td.was { width: 1%; white-space: nowrap; }
+
+.creatureator input.stat-input {
+  width: 4.5rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.creatureator input.stat-input.formula {
+  width: 6rem;
+  text-align: left;
+}
+
+.creatureator select.band-select {
+  width: 100%;
+  font-size: 0.78rem;
+  height: 1.6rem;
+}
+
+/* An edited row is marked, not recoloured: the band chip already carries a
+   colour and a second one competing with it makes the row harder to read. */
+.creatureator .edit-row.dirty th {
+  font-weight: 700;
+}
+
+.creatureator .edit-row.dirty th::before {
+  content: "•";
+  color: var(--creatureator-band-high);
+  margin-right: 0.25em;
+}
+
+/* The rescaled value never disappears - it becomes the way back to it. */
+.creatureator button.revert {
+  background: none;
+  border: 1px solid transparent;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  padding: 0 0.3em;
+  width: auto;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.creatureator button.revert:hover {
+  opacity: 1;
+  border-color: var(--color-border-light-tertiary, #7a7971);
+}
+
+.creatureator .band.none {
+  background: transparent;
+  color: inherit;
+  opacity: 0.4;
+}
+
+.creatureator .damage-type {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  margin-left: 0.3em;
+}
+
+.creatureator .field-note {
+  margin: 0.1rem 0 0.2rem;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  max-width: 16rem;
+}
+
+/* Hit Points and weaknesses are one decision (ARCHITECTURE.md 7.5), so they
+   share a block rather than sitting in separate sections. */
+.creatureator .defence-block {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--color-border-light-tertiary, #7a7971);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.creatureator .defence-block h5 {
+  margin: 0 0 0.2rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+.creatureator .defence-block .blurb {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.creatureator .defence-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.creatureator .defence-table th { text-align: left; font-weight: 500; white-space: nowrap; }
+.creatureator .defence-table td.value { display: flex; align-items: center; gap: 0.3rem; }
+.creatureator .defence-table input { width: 3.5rem; text-align: right; }
+
+.creatureator .defence-row.removed th {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.creatureator button.defence-remove,
+.creatureator button.defence-restore,
+.creatureator button.defence-add-button {
+  width: auto;
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  padding: 0 0.5em;
+}
+
+.creatureator .defence-add {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.creatureator .defence-add input.defence-add-type { flex: 1 1 auto; min-width: 0; }
+.creatureator .defence-add input.defence-add-value { width: 3.5rem; }
+.creatureator .defence-add select { width: auto; font-size: 0.78rem; }
+
+.creatureator-picker button.customise,
+.creatureator-picker button.create,
+.creatureator-picker button.back { width: auto; flex: 0 0 auto; }
+
+.creatureator-picker .picker-footer button.revert-all {
+  width: auto;
+  font-size: 0.8rem;
+  padding: 0 0.6em;
+}
