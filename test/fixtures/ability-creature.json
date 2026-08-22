@@ -1,0 +1,82 @@
+{
+  "name": "Bog Elder",
+  "type": "npc",
+  "system": {
+    "details": { "level": { "value": 9 } },
+    "attributes": {
+      "ac": { "value": 28 },
+      "hp": { "value": 150, "max": 150 },
+      "weaknesses": [],
+      "resistances": []
+    },
+    "perception": { "mod": 19 },
+    "saves": {
+      "fortitude": { "value": 20 },
+      "reflex": { "value": 16 },
+      "will": { "value": 18 }
+    },
+    "abilities": {
+      "str": { "mod": 5 }, "dex": { "mod": 2 }, "con": { "mod": 5 },
+      "int": { "mod": 0 }, "wis": { "mod": 3 }, "cha": { "mod": 1 }
+    },
+    "skills": { "athletics": { "base": 20 } }
+  },
+  "items": [
+    {
+      "_id": "breathofthebog01",
+      "name": "Breath of the Bog",
+      "type": "action",
+      "system": {
+        "actionType": { "value": "action" },
+        "actions": { "value": 2 },
+        "category": "offensive",
+        "traits": { "value": ["evil", "primal", "poison"] },
+        "description": {
+          "value": "<p>The bog elder breathes out. Each creature in a @Template[cone|distance:30] must attempt a @Check[fortitude|dc:28|basic] save, taking @Damage[6d6[poison]] damage. A creature that critically fails must also succeed at a @Check[flat|dc:11] check each round or lose its action.</p>"
+        },
+        "rules": []
+      }
+    },
+    {
+      "_id": "bogrot0000000001",
+      "name": "Bog Rot",
+      "type": "action",
+      "system": {
+        "actionType": { "value": "passive" },
+        "actions": { "value": null },
+        "category": "offensive",
+        "traits": { "value": ["disease"] },
+        "description": {
+          "value": "<p><strong>Saving Throw</strong> @Check[fortitude|dc:21]; <strong>Stage 1</strong> sickened 1 (1 day)</p>"
+        },
+        "rules": []
+      }
+    },
+    {
+      "_id": "silentstalker001",
+      "name": "Silent Stalker",
+      "type": "action",
+      "system": {
+        "actionType": { "value": "passive" },
+        "actions": { "value": null },
+        "category": "defensive",
+        "traits": { "value": [] },
+        "description": { "value": "<p>The bog elder leaves no tracks in soft ground.</p>" },
+        "rules": []
+      }
+    },
+    {
+      "_id": "tentacle00000001",
+      "name": "Tentacle",
+      "type": "melee",
+      "system": {
+        "bonus": { "value": 21 },
+        "range": null,
+        "traits": { "value": ["reach-15"] },
+        "damageRolls": {
+          "a1b2c3": { "damage": "2d10+9", "damageType": "bludgeoning", "category": null }
+        }
+      }
+    }
+  ]
+}

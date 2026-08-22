@@ -34,6 +34,11 @@ import {
   isFlat,
   rescaleDamageFormula,
 } from "../pf2e/damage.js";
+import {
+  rescaleAbilityText,
+  type AbilityChange,
+  type AbilityNote,
+} from "./rescale-ability.js";
 
 type TableKey = keyof typeof CREATURE_TABLES;
 
@@ -53,6 +58,21 @@ export interface RescaleWarning {
   message: string;
 }
 
+/**
+ * What happened to one of the creature's ability items.
+ *
+ * Kept apart from `StatChange` deliberately. A stat change is a number at an
+ * addressable path on the stat block; this is a rewrite inside an item's
+ * description, which the editor reaches a different way. Collapsing the two
+ * would break the property that every emitted path can be read and written.
+ */
+export interface AbilityItemChange {
+  itemId: string;
+  itemName: string;
+  changes: AbilityChange[];
+  notes: AbilityNote[];
+}
+
 export interface RescaleResult {
   actor: NPCSource;
   block: StatBlock;
@@ -60,6 +80,8 @@ export interface RescaleResult {
   toLevel: number;
   changes: StatChange[];
   warnings: RescaleWarning[];
+  /** Per-ability DC rewrites, and everything deliberately left alone. */
+  abilityChanges: AbilityItemChange[];
 }
 
 interface Ctx {
@@ -290,6 +312,7 @@ export function rescaleCreature(src: NPCSource, toLevel: number): RescaleResult 
       toLevel,
       changes: [],
       warnings: [{ path: "level", message: "Source and target level are the same." }],
+      abilityChanges: [],
     };
   }
 
@@ -313,6 +336,7 @@ export function rescaleCreature(src: NPCSource, toLevel: number): RescaleResult 
               `Extrapolating would invent numbers Paizo never published.`,
           },
         ],
+        abilityChanges: [],
       };
     }
   }
@@ -463,14 +487,63 @@ export function rescaleCreature(src: NPCSource, toLevel: number): RescaleResult 
     });
   }
 
+  const actor = applyStatBlock(src, block);
+
+  /**
+   * The creature's own abilities carry level-scaled numbers too.
+   *
+   * A Husk Zombie moved from 2 to 5 keeps every save DC written into its
+   * ability text unless something rewrites them, which would leave a level 5
+   * creature demanding level 2 saves - visibly wrong on the sheet and easy to
+   * miss. Now that Table 2-11 is known to govern them (ARCHITECTURE.md 7.6),
+   * they scale with everything else.
+   */
+  const abilityChanges = rescaleActorAbilities(actor, original.level, toLevel);
+
   return {
-    actor: applyStatBlock(src, block),
+    actor,
     block,
     fromLevel: original.level,
     toLevel,
     changes: ctx.changes,
     warnings: ctx.warnings,
+    abilityChanges,
   };
+}
+
+/**
+ * Rewrite the DCs inside every `action` item on an actor, in place.
+ *
+ * Returns one entry per ability that had something worth reporting - either a
+ * DC that moved, or a number left alone on purpose. Abilities with no numbers
+ * at all (61% of them, measured) produce no entry and no noise.
+ */
+export function rescaleActorAbilities(
+  actor: NPCSource,
+  fromLevel: number,
+  toLevel: number
+): AbilityItemChange[] {
+  const out: AbilityItemChange[] = [];
+
+  for (const item of actor.items ?? []) {
+    if (item["type"] !== "action") continue;
+    const description = item["system"]?.description?.value;
+    if (typeof description !== "string" || !description) continue;
+
+    const result = rescaleAbilityText(description, fromLevel, toLevel);
+    if (!result.changes.length && !result.notes.length) continue;
+
+    if (result.changes.length) item["system"].description.value = result.html;
+
+    out.push({
+      itemId: String(item["_id"] ?? ""),
+      itemName: String(item["name"] ?? ""),
+      changes: result.changes,
+      notes: result.notes,
+    });
+  }
+
+  return out;
 }
 
 /** One-line-per-change summary, for logs and quick inspection. */
@@ -481,5 +554,19 @@ export function summarise(result: RescaleResult): string {
     return `  ${c.path.padEnd(28)} ${String(c.from).padStart(8)} -> ${String(c.to).padEnd(8)} [${c.band}${off}]`;
   });
   const warns = result.warnings.map((w) => `  ! ${w.path}: ${w.message}`);
-  return [head, ...rows, ...(warns.length ? ["", ...warns] : [])].join("\n");
+
+  const abilities = result.abilityChanges.flatMap((a) => [
+    ...a.changes.map(
+      (c) =>
+        `  ${(a.itemName + " " + c.label).padEnd(28)} ${String(c.from).padStart(8)} -> ${String(c.to).padEnd(8)} [${c.band}${c.offset ? (c.offset > 0 ? ` +${c.offset}` : ` ${c.offset}`) : ""}]`
+    ),
+    ...a.notes.map((n) => `  . ${a.itemName}: ${n.detail}`),
+  ]);
+
+  return [
+    head,
+    ...rows,
+    ...(abilities.length ? ["", ...abilities] : []),
+    ...(warns.length ? ["", ...warns] : []),
+  ].join("\n");
 }

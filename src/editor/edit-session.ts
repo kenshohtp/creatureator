@@ -37,6 +37,13 @@ import {
   type StatBlock,
 } from "../pf2e/npc.js";
 import {
+  graftAbility,
+  readAbility,
+  type AbilityItem,
+  type GraftOptions,
+  type GraftReport,
+} from "../pf2e/ability.js";
+import {
   averageDamage,
   isFlat,
   parseDamage,
@@ -83,6 +90,15 @@ export interface EditField {
   damageType?: string;
 }
 
+/** One ability on the creature, however it got there. */
+export interface AbilityRow {
+  ability: AbilityItem;
+  origin: "chassis" | "grafted";
+  removed: boolean;
+  /** Present for grafted abilities: what happened on the way in. */
+  report: GraftReport | null;
+}
+
 export interface EditSection {
   title: string;
   fields: EditField[];
@@ -115,7 +131,11 @@ function sectionFor(path: string): (typeof SECTION_ORDER)[number] {
 }
 
 export class EditSession {
-  /** The chassis, untouched. Everything is applied to a clone of it. */
+  /**
+   * The creature as the rescale produced it, including ability text whose DCs
+   * were already rewritten. Edits are applied on top of this rather than on the
+   * raw chassis, so a stat edit cannot quietly undo the ability pass.
+   */
   readonly source: NPCSource;
   readonly baseline: StatBlock;
   readonly fromLevel: number;
@@ -123,7 +143,17 @@ export class EditSession {
   /** Warnings the rescale itself produced; some are re-derived as you edit. */
   readonly rescaleWarnings: readonly RescaleWarning[];
 
+  /** The original chassis, for reference and for a full revert. */
+  readonly chassis: NPCSource;
+  /** What the rescale did to the creature's own abilities. */
+  readonly abilityChanges: RescaleResult["abilityChanges"];
+
   block: StatBlock;
+
+  /** Abilities added by the user, with the report from grafting each. */
+  #grafted: { item: Record<string, any>; report: GraftReport }[] = [];
+  /** Ids of the creature's own abilities the user has removed. */
+  #removed = new Set<string>();
 
   /**
    * Which damage roll is each Strike's main damage.
@@ -135,7 +165,9 @@ export class EditSession {
   readonly #primary = new Map<string, number>();
 
   constructor(source: NPCSource, result: RescaleResult) {
-    this.source = structuredClone(source);
+    this.source = structuredClone(result.actor);
+    this.chassis = structuredClone(source);
+    this.abilityChanges = result.abilityChanges;
     this.baseline = structuredClone(result.block);
     this.block = structuredClone(result.block);
     this.fromLevel = result.fromLevel;
@@ -358,6 +390,8 @@ export class EditSession {
 
   resetAll(): void {
     this.block = structuredClone(this.baseline);
+    this.#grafted = [];
+    this.#removed.clear();
   }
 
   get dirtyPaths(): string[] {
@@ -365,7 +399,13 @@ export class EditSession {
   }
 
   get isDirty(): boolean {
-    return this.block.name !== this.baseline.name || this.dirtyPaths.length > 0;
+    return (
+      this.block.name !== this.baseline.name ||
+      this.dirtyPaths.length > 0 ||
+      this.#grafted.length > 0 ||
+      this.#removed.size > 0 ||
+      this.defenceRows().some((d) => d.dirty)
+    );
   }
 
   // --- weaknesses and resistances ----------------------------------------
@@ -415,6 +455,68 @@ export class EditSession {
   /** Total numeric weakness, which is what GM Core trades against HP. */
   get weaknessTotal(): number {
     return this.block.weaknesses.reduce((sum, w) => sum + w.value, 0);
+  }
+
+  // --- abilities ---------------------------------------------------------
+
+  /**
+   * Every ability on the creature: the ones it came with and the ones grafted
+   * on, with removals shown rather than hidden so they can be undone.
+   */
+  abilityRows(): AbilityRow[] {
+    const own: AbilityRow[] = (this.source.items ?? [])
+      .filter((i) => i["type"] === "action")
+      .map((i) => {
+        const ability = readAbility(i);
+        return {
+          ability,
+          origin: "chassis" as const,
+          removed: this.#removed.has(ability.id),
+          report: null,
+        };
+      });
+
+    const added: AbilityRow[] = this.#grafted.map((g, index) => ({
+      ability: { ...readAbility(g.item), id: `grafted-${index}` },
+      origin: "grafted" as const,
+      removed: false,
+      report: g.report,
+    }));
+
+    return [...own, ...added];
+  }
+
+  /**
+   * Attach an ability taken from somewhere else.
+   *
+   * The source item is not mutated and nothing is written to the world; the
+   * graft only becomes real when the creature is created. The report explains
+   * every number that moved and every number that did not.
+   */
+  graft(
+    source: Record<string, any>,
+    options: Omit<GraftOptions, "toLevel"> & { toLevel?: number }
+  ): GraftReport {
+    const result = graftAbility(source, { ...options, toLevel: options.toLevel ?? this.level });
+    this.#grafted.push(result);
+    return result.report;
+  }
+
+  /** Drop a grafted ability, by the index its row reports. */
+  ungraft(index: number): boolean {
+    if (index < 0 || index >= this.#grafted.length) return false;
+    this.#grafted.splice(index, 1);
+    return true;
+  }
+
+  /** Remove one of the creature's own abilities, or put it back. */
+  setAbilityRemoved(itemId: string, removed: boolean): void {
+    if (removed) this.#removed.add(itemId);
+    else this.#removed.delete(itemId);
+  }
+
+  get graftedCount(): number {
+    return this.#grafted.length;
   }
 
   // --- warnings ----------------------------------------------------------
@@ -470,7 +572,17 @@ export class EditSession {
 
   /** The actor source to create, with every edit applied. */
   toActorSource(): NPCSource {
-    return applyStatBlock(this.source, this.block);
+    const out = applyStatBlock(this.source, this.block);
+
+    if (this.#removed.size) {
+      out.items = (out.items ?? []).filter(
+        (i) => !(i["type"] === "action" && this.#removed.has(String(i["_id"])))
+      );
+    }
+
+    for (const g of this.#grafted) out.items.push(structuredClone(g.item));
+
+    return out;
   }
 
   /** One line per edit, for the console log that accompanies creation. */
@@ -490,6 +602,16 @@ export class EditSession {
           `  ${d.value === null ? "removed" : "edited "} ${d.kind} ${d.type.padEnd(16)} ` +
           `${d.baseline ?? "-"} -> ${d.value ?? "removed"}`
       );
-    return [head, ...edits, ...defences].join("\n");
+    const abilities = [
+      ...this.abilityRows()
+        .filter((r) => r.origin === "grafted")
+        .map((r) => `  grafted ${r.ability.name}`),
+      ...[...this.#removed].map((id) => {
+        const row = this.abilityRows().find((r) => r.ability.id === id);
+        return `  removed ability ${row?.ability.name ?? id}`;
+      }),
+    ];
+
+    return [head, ...edits, ...defences, ...abilities].join("\n");
   }
 }
