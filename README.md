@@ -57,8 +57,10 @@ expression, a DC it cannot resolve — it says which, and why. A warning that fi
 then clears when you address it is worth more than a warning that is always on.
 
 **Deterministic first.** All scaling is table lookup against published Paizo numbers,
-validated against 4,714 published creatures. There is no language model anywhere in
-the path that decides a statistic, and the module is fully useful without an API key.
+validated against every creature in the Archives of Nethys index — 4,743 of them at
+the last run, with exact agreement on Perception, all three saves, Wisdom and Hit
+Points. There is no language model anywhere in the path that decides a statistic, and
+the module is fully useful without an API key.
 
 **Measured, not assumed.** Where the rules are ambiguous, the bestiary is the oracle.
 The classifier, the table that governs ability DCs, and the decision to leave ability
@@ -86,7 +88,8 @@ npm install
 npm run check          # typecheck, test, build — stops at the first failure
 npm run build          # emits scripts/ (gitignored)
 npm run fetch:tables   # regenerate src/data/creature-tables.ts from AoN
-npm run fetch:corpus   # harvest the 4,714-creature validation fixture (optional, ~5MB)
+npm run fetch:corpus   # harvest the validation fixture from AoN (optional, ~5MB)
+npm run package        # build module.zip for a release
 ```
 
 `fetch:tables` output is committed, so a fresh clone builds without network access.
@@ -98,9 +101,14 @@ needed when adding a new module.
 
 ### Probes
 
-`tools/probe-*.js` are pasted into the Foundry console and read your world without
-writing to it. They exist because every part of this module built from assumption was
-wrong, and every part built from a probe held up. Write more of them.
+`tools/` holds the measurement scripts, in two kinds. `probe-*.js` are pasted into the
+Foundry console and read your world without writing to it. `read-pack.mjs` and
+`probe-strike-shapes.mjs` run from the command line and read Foundry's compendium
+packs straight off disk, with Foundry closed — the whole PF2e system parses in about
+three seconds.
+
+They exist because every part of this module built from assumption was wrong, and
+every part built from a probe held up. Write more of them.
 
 ## Data sources
 
@@ -115,6 +123,16 @@ Archives of Nethys is used offline to generate the tables and the validation cor
 Module code: MIT (see [LICENSE](./LICENSE)).
 
 Pathfinder game mechanics reproduced in `src/data/` are Open Game Content published
-under the ORC License. Creature names, descriptions and artwork are never copied into
-this repository or into module output. **The attribution notice is not yet verified —
-see [NOTICE.md](./NOTICE.md) before publishing anything.**
+under the ORC License. Both required notices — the ORC Notice and the Attribution
+Notice — are in [NOTICE.md](./NOTICE.md), copied verbatim from Pathfinder GM Core's
+own legal page.
+
+**What is redistributed and what is merely used are different things.** This
+repository and the release archive carry the mechanical tables and nothing else
+Paizo-owned; that is enforced by an allowlist in `tools/package-module.mjs` rather
+than by remembering. What the module *does* at runtime is copy content out of the
+compendia you have installed — Paizo premium modules you have bought very much
+included — into the creature it builds. That is the point of it: a cloned chassis
+keeps its Strikes, rule elements, description and art, and a grafted ability keeps
+its text verbatim until you reflavour it. Nothing is uploaded or bundled anywhere,
+and the creature lives in your own world.
