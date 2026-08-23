@@ -98,16 +98,25 @@ follows:
 - [x] ORC Notice copied verbatim from GM Core's legal page (23 Aug 2026)
 - [x] GM Core attribution line copied verbatim from GM Core's own legal page
       (photographed by Dan, 23 Aug 2026 — the book, not a transcription)
-- [ ] ORC Notice reproduced in the module's distributed files, not only in this repo
+- [x] ORC Notice reproduced in the distributed files, not only in this repo
+      (enforced: `npm run package` aborts if `NOTICE.md` is absent)
 - [ ] Confirm no creature names, descriptions or artwork have entered `src/data/`
-- [ ] Confirm the release artifact contains no Paizo premium module content
+- [x] Release artifact contains no Paizo premium module content
+      (enforced: the allowlist in `tools/package-module.mjs` ships seven named
+      paths and excludes everything else by default)
 
-**What `module.zip` must contain.** There is no release workflow — the zip is built by
-hand — so nothing enforces this and it has to be checked each time. The archive must
-carry `NOTICE.md` and `LICENSE` alongside `module.json`, `scripts/` and `styles/`.
-`module.json` points Foundry at `NOTICE.md` through its `license` field, and that link
-is dead if the file is not in the archive. Zipping the repo satisfies this; assembling
-a slim artifact from `scripts/` and `styles/` alone does not.
+**What `module.zip` must contain — now enforced.** Build the archive with
+`npm run package`, never by hand. `tools/package-module.mjs` ships a strict
+allowlist: `module.json`, `scripts/`, `styles/`, `lang/`, `NOTICE.md`, `LICENSE` and
+`README.md`, and nothing else. Any of those missing aborts the build rather than
+producing a quietly incomplete release — which matters most for `NOTICE.md`, since
+`module.json` points Foundry at it through the `license` field and that link is dead
+if the file is absent.
+
+The allowlist is deliberate rather than an ignore list. An ignore list fails open: add
+a directory to the repo, forget to exclude it, and it ships. An allowlist fails
+closed — anything new has to be added to `CONTENTS` on purpose, which is the
+behaviour the last two checklist items below want.
 
 ---
 

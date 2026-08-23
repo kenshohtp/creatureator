@@ -364,6 +364,13 @@ and only the bridge can see Dan's disk. Anything committed to `tools/` has to ru
 **Windows with node** — which is why `read-pack.mjs` is JavaScript, though it was
 prototyped in Python.
 
+One more consequence, learned 23 Aug: `node_modules/` in the mounted repo was
+installed **by Windows**, so packages with native bindings only work there. Running
+`npm run build` from the bridge fails with "Cannot find native binding
+@rolldown/binding-linux-x64-gnu" — that is the environment, not the build. Plain-node
+tools in `tools/` run from either side; anything going through vite or vitest is
+Windows-only in practice.
+
 What worked all session, and is set up in `~/work/creatureator` in a fresh
 sandbox if recreated:
 
@@ -580,6 +587,7 @@ tools/
   probe-area-frequency.js     Table 2-12 column signals: frequency, prose recharge
   read-pack.mjs               read a Foundry LevelDB pack off disk, no Foundry needed
   probe-strike-shapes.mjs     how published creatures shape Strike damage (§7.3)
+  package-module.mjs          builds module.zip from an allowlist; `npm run package`
   setup-github-mcp.ps1/.sh    see 6.5; do not expect them to work
   restore-mcp-servers.ps1     recovery for the BOM incident
 docs/
@@ -721,9 +729,12 @@ ability damage — now true only for non-area damage, and worded per case.
 
 **Nothing is blocking a release.** What is left is optional, in rough order of value:
 
-1. **Cut a release.** The only pre-release work is packaging: `module.zip` is built
-   by hand and must contain `NOTICE.md` and `LICENSE` alongside `module.json`,
-   `scripts/` and `styles/`. See the note under the checklist in `NOTICE.md`.
+1. **Cut a release.** `npm run package` builds `module.zip` from a strict allowlist
+   and refuses to produce one without `NOTICE.md` or `LICENSE`. Attach it to a GitHub
+   release tagged to match `module.json`'s version — `module.json` already points its
+   `download` at `releases/latest/download/module.zip`. One checklist item in
+   `NOTICE.md` is still a human read: that no creature names or descriptions have
+   entered `src/data/`.
 2. **AoN as search**, if it is wanted at all — and it is now optional rather than
    central. Not an importer: search AoN, then resolve the hit to the local Foundry
    item through the five normalisation tiers in ARCHITECTURE §7.7, which cover

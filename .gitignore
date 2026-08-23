@@ -10,6 +10,10 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Release artifact. Built by `npm run package`; attached to a GitHub release
+# rather than committed.
+module.zip
+
 # Secrets — never commit a PAT.
 .env
 .mcp.json
