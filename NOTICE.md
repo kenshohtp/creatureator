@@ -15,62 +15,66 @@ and contain no creature names, descriptions, artwork, or setting material.
 
 ---
 
-## ⚠ Before any public release
+## Before any public release
 
 The ORC License requires two things in the product: an **ORC Notice** reproducing the
 licence's own wording, and an **Attribution Notice** crediting each upstream licensor
-of the Licensed Material used.
+of the Licensed Material used. **Both are now filled from GM Core's own legal page**,
+photographed 23 Aug 2026. What remains in the checklist below is about packaging, not
+wording.
 
-Below, the ORC Notice has been checked against Paizo's own ORC licence page
-(23 Aug 2026). **The Paizo attribution line is still not verified.**
-Paizo's ORC page does not publish per-product attribution text, so the correct
-copyright line and author list for GM Core must be taken from a primary source rather
-than reconstructed. Do not publish with a reconstructed one.
+**Provenance of the two notices below.** Both were copied from the ORC Notice printed
+in Pathfinder GM Core, photographed 23 Aug 2026. Paizo's ORC web page publishes the
+licence but no per-product attribution text, so the book was the only source for the
+copyright line — as an earlier revision of this file correctly warned.
 
-**Where to get the primary source.** The exact line is printed in GM Core's own legal
-section, and is included in the Paizo premium Foundry module for GM Core. Copy it from
-there verbatim — the book you already own is the authority, not a web search.
+The attribution line was diffed against the hand-maintained transcription the PF2e
+Foundry system ships at `Data/systems/pf2e/licenses/ORCLicense.md`. All twenty-seven
+author names match exactly and in order; the transcription differs only in its
+preamble, writing "© 2023, Paizo Inc.; Designers:" where the book reads
+"© 2023 Paizo Inc., Designed by". The book's punctuation is what appears below. That
+file is a reasonable cross-check and not an authority — three of its fifty entries
+still read `Authors: TBD.`
 
-**A cross-check, not a source.** The PF2e Foundry system ships a hand-maintained
-transcription at `Data/systems/pf2e/licenses/ORCLicense.md`, and its GM Core entry is
-populated. Do not copy it in. Three of that file's fifty entries read `Authors: TBD.`,
-which is proof it is a community transcription rather than an authority. It is useful
-only for diffing against the book *after* the real line has been copied, so that
-twenty-seven author names need not be checked by eye.
-
-An earlier draft of this file carried a reconstructed author list. It has been removed
-rather than corrected, because a plausible-looking legal notice is more dangerous than
-an obviously incomplete one.
+An earlier draft of this file carried a *reconstructed* author list. It was deleted
+rather than patched, on the grounds that a plausible-looking legal notice is more
+dangerous than an obviously incomplete one. That judgement held up: the real list,
+when it arrived, was not what a reconstruction would have produced.
 
 ### ORC Notice — ORC License §III.a
 
-Checked 23 Aug 2026 against three sources that agree: the ORC License text itself
-(§III.a), Paizo's ORC licence page, and the PF2e Foundry system's
-`licenses/ORCLicense.md`.
+**Copied verbatim from Pathfinder GM Core's own legal page**, photographed 23 Aug
+2026. Matching the licensor whose Licensed Material this product actually uses was
+preferred over matching the licence's current abstract phrasing.
 
-> This product is licensed under the ORC License located at the Library of Congress
-> at TX 9-307-067 and available online at various locations. All warranties are
-> disclaimed as set forth therein.
+> This product is licensed under the ORC License to be held in the Library of
+> Congress and available online at various locations including paizo.com/orclicense,
+> azoralaw.com/orclicense, and others. All warranties are disclaimed as set forth
+> therein.
 
-**Do not "correct" this back.** An earlier draft read "**held in** the Library of
-Congress" and appended mirror URLs (azoralaw, gencon). Two separate things were going
-on there and only one of them was a mistake:
+**Do not "correct" this.** Three wordings exist, all defensible, and they genuinely
+differ:
 
-- "held in" is wrong. Every source reads "located at". That was the real defect.
-- The mirror list is **not** wrong in principle. §III.e's sample notice reads
-  "available online at various locations including [possible domain names may be
-  inserted] and others", so filling that bracket with domains follows the licence's
-  own example.
+| source | wording |
+|---|---|
+| **GM Core, printed 2023 — used here** | "to be held in the Library of Congress", no registration number, two domains named |
+| ORC License §III.a, and paizo.com/orclicense today | "located at the Library of Congress at TX 9-307-067", no domains |
+| ORC License §III.e sample notice | as §III.a, plus "including [possible domain names may be inserted] and others" |
 
-§III.a states the requirement in its bare form; §III.e shows it expanded. Both trace
-to the licence. The bare form is used here because it is also what Paizo publishes,
-so this notice matches the licensor whose material is being used.
+GM Core went to print before the licence was registered, which is why it reads "to be
+held in" and carries no TX number. The assigned number is TX 9-307-067 and Paizo's
+website uses it today. The domain list is expressly sanctioned by §III.e, and the two
+domains above are the two GM Core itself names.
 
-One trap for anyone re-checking: the copy hosted at `chaosium.com` is a
-pre-registration draft and carries `TX00[number TBD]` where the registration number
-belongs. TX 9-307-067 is the assigned number, and is what Paizo's page shows.
+A previous revision of this file replaced the book's wording with the bare §III.a
+form, on the strength of Paizo's website and the PF2e system agreeing with each other
+— before anyone had looked at the book. Two independent secondary sources agreeing is
+not the same as being right. The book is the licensor's own published notice for the
+exact product whose material this uses, so the book wins.
 
-### Attribution Notice — ORC License §III.b — INCOMPLETE, fill from the primary source
+This has not been reviewed by a lawyer.
+
+### Attribution Notice — ORC License §III.b
 
 The "based on the following Licensed Material" statement satisfies §III.b(i); the
 credit request satisfies §III.b(ii). §III.c (Reserved Material) and §III.d (Expressly
@@ -81,9 +85,7 @@ rather than an omission.
 ```
 This product is based on the following Licensed Material:
 
-    [ GM Core copyright line, verbatim from the book's legal page or from the
-      Paizo premium Foundry module for GM Core. It names the product, the year,
-      Paizo Inc., and the authors. ]
+    Pathfinder GM Core © 2023 Paizo Inc., Designed by Logan Bonner and Mark Seifter. Authors: Amirali Attar Olyaee, Logan Bonner, Creighton Broadhurst, Jason Bulmahn, James Case, Jesse Decker, Eleanor Ferron, Fabby Garza Marroquín, Jaym Gates, Matthew Goetz, James Jacobs, Brian R. James, Jenny Jarzabski, Dustin Knight, Jason LeMaitre, Lyz Liddell, Luis Loza, Ron Lundeen, Stephen Radney-MacFarland, David N. Ross, Michael Sayre, Mark Seifter, Owen K.C. Stephens, Amber Stewart, Clark Valentine, Landon Winkler, and Linda Zayas-Palmer
 
 If you use our Licensed Material in your own published works, please credit us as
 follows:
@@ -93,8 +95,9 @@ follows:
 
 ### Checklist before release
 
-- [x] ORC Notice wording checked against Paizo's licence page (23 Aug 2026)
-- [ ] GM Core attribution line copied verbatim from a primary source
+- [x] ORC Notice copied verbatim from GM Core's legal page (23 Aug 2026)
+- [x] GM Core attribution line copied verbatim from GM Core's own legal page
+      (photographed by Dan, 23 Aug 2026 — the book, not a transcription)
 - [ ] ORC Notice reproduced in the module's distributed files, not only in this repo
 - [ ] Confirm no creature names, descriptions or artwork have entered `src/data/`
 - [ ] Confirm the release artifact contains no Paizo premium module content

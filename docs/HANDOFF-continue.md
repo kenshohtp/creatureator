@@ -226,25 +226,31 @@ Option A as decided: the engine rescales faithfully (AC 17 @ L2 → 21, not 22),
 shows the band, and offers a one-click change. Both `describe.todo` blocks are
 now real tests.
 
-### 6.4 ORC attribution — blocking any public release
+### 6.4 ORC attribution — RESOLVED (23 Aug)
 
-The generated tables in `src/data/creature-tables.ts` are Open Game Content and the
+The generated tables in `src/data/creature-tables.ts` are Open Game Content, and the
 ORC License requires two things: an **ORC Notice** in specific wording, and an
-**Attribution Notice** crediting each upstream licensor.
+**Attribution Notice** crediting each upstream licensor. Both are now in `NOTICE.md`,
+copied from the ORC Notice printed in Pathfinder GM Core, which Dan photographed.
 
-**The ORC Notice is done** (23 Aug). Its wording was checked against Paizo's own
-licence page and the PF2e system's `licenses/ORCLicense.md`, which agree — and the
-draft in `NOTICE.md` did not match either. It read "held in the Library of Congress"
-with a list of mirror URLs; both sources read "located at" with no mirrors. Corrected.
-Worth noting the draft had *not* been flagged as uncertain, while the attribution line
-beside it had — the flagged half was fine and the confident half was wrong.
+The route there is worth keeping, because the same mistake happened twice.
 
-**The attribution line is still open**, and it is the last thing blocking a release.
-It must be copied verbatim from GM Core's own legal page. The PF2e system ships a
-populated GM Core entry, but three of that file's fifty entries read `Authors: TBD.`,
-so it is a community transcription — good for diffing against the book once the real
-line is in hand, not good as the source. Dan owns the book; this is a copy job, not
-research.
+The 22 Aug file flagged the *attribution line* as unverified and presented the *ORC
+Notice* as sound. The flagged half was fine; the confident half was wrong. Then on
+23 Aug the ORC Notice was "corrected" away from the book's phrasing to the licence's
+bare §III.a form — on the strength of Paizo's website and the PF2e system agreeing
+with each other, before anyone had opened the book. When the book arrived it read
+"to be held in the Library of Congress", with no registration number and with the
+domain list, which is close to what the original draft had said all along.
+
+**Two independent secondary sources agreeing is not the same as being right.** Both
+were describing the licence in the abstract; the book is the licensor's own notice for
+the exact product whose material this uses.
+
+What is in the file now is verbatim from the book, with all three competing wordings
+and their provenance recorded beside it so nobody re-litigates it. The remaining
+checklist items concern packaging — what `module.zip` must contain — not wording.
+Not reviewed by a lawyer.
 
 ### 6.5 GitHub — Dan pushes; Claude still cannot
 
@@ -711,11 +717,13 @@ ability damage — now true only for non-area damage, and worded per case.
 
 §9a is done, and so are all three ability routes that do not need the network
 (§7). The AoN gap has been measured and the importer is not worth building
-(§7a, ARCHITECTURE §7.7). What is genuinely open, in rough order of value:
+(§7a, ARCHITECTURE §7.7). ORC attribution is resolved (§6.4).
 
-1. **ORC attribution** (§6.4, NOTICE.md) — blocks any public release. Dan owns
-   the primary source; it is one copied line, not research. With the AoN question
-   closed this is the only thing standing between the module and a release.
+**Nothing is blocking a release.** What is left is optional, in rough order of value:
+
+1. **Cut a release.** The only pre-release work is packaging: `module.zip` is built
+   by hand and must contain `NOTICE.md` and `LICENSE` alongside `module.json`,
+   `scripts/` and `styles/`. See the note under the checklist in `NOTICE.md`.
 2. **AoN as search**, if it is wanted at all — and it is now optional rather than
    central. Not an importer: search AoN, then resolve the hit to the local Foundry
    item through the five normalisation tiers in ARCHITECTURE §7.7, which cover
