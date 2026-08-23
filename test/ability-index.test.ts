@@ -17,6 +17,10 @@ import {
   sortAbilities,
   toAbilityEntry,
   traitsIn,
+  buildEmbeddedAbilityIndex,
+  collapseByName,
+  toEmbeddedAbilityEntry,
+  EMBEDDED_INDEX_FIELDS,
   type AbilityEntry,
 } from "../src/foundry/ability-index.js";
 import {
@@ -891,5 +895,113 @@ describe("a DC that cannot resolve on a creature", () => {
     ).toBe(true);
     expect(s.abilityText(id)).toContain("against:class-spell");
     expect(s.abilityText(id)).not.toContain("dc:");
+  });
+});
+
+/**
+ * Abilities embedded in creatures.
+ *
+ * The pool `ability-index.ts` used to describe as unreachable. Measured on a
+ * real install at 33,268 abilities across 7,894 creatures in 2.0s, because
+ * `getIndex({fields:["items"]})` returns embedded items outright — see
+ * tools/probe-embedded-index.js.
+ */
+describe("embedded ability index", () => {
+  const bestiary = {
+    collection: "pf2e.pathfinder-monster-core",
+    id: "pathfinder-monster-core",
+    label: "Pathfinder Monster Core",
+    type: "Actor",
+    packageType: "system",
+    packageName: "pf2e",
+  };
+
+  const actor = (name: string, level: number | null, items: unknown[]) => ({
+    _id: name.replace(/\W/g, "").slice(0, 16),
+    name,
+    type: "npc",
+    ...(level === null ? {} : { system: { details: { level: { value: level } } } }),
+    items,
+  });
+
+  const grab = (over: Record<string, unknown> = {}) => ({
+    _id: "grabitem00000001",
+    name: "Grab",
+    type: "action",
+    system: { actionType: { value: "action" }, actions: { value: 1 }, traits: { value: ["attack"] } },
+    ...over,
+  });
+
+  it("builds a uuid that addresses the item on its actor", () => {
+    const e = toEmbeddedAbilityEntry(bestiary, actor("Bog Dragon", 11, []) as any, grab());
+    expect(e?.uuid).toBe("Compendium.pf2e.pathfinder-monster-core.Actor.BogDragon.Item.grabitem00000001");
+    expect(e?.creature).toEqual({
+      uuid: "Compendium.pf2e.pathfinder-monster-core.Actor.BogDragon",
+      name: "Bog Dragon",
+      level: 11,
+    });
+  });
+
+  it("carries the creature's level, because grafting rescales from it", () => {
+    expect(toEmbeddedAbilityEntry(bestiary, actor("A", 7, []) as any, grab())?.creature.level).toBe(7);
+    expect(toEmbeddedAbilityEntry(bestiary, actor("B", null, []) as any, grab())?.creature.level).toBeNull();
+  });
+
+  it("refuses anything that is not an action on an Actor pack", () => {
+    expect(toEmbeddedAbilityEntry(bestiary, actor("A", 1, []) as any, grab({ type: "melee" }))).toBeNull();
+    expect(toEmbeddedAbilityEntry(bestiary, actor("A", 1, []) as any, grab({ name: "" }))).toBeNull();
+    expect(toEmbeddedAbilityEntry({ ...bestiary, type: "Item" }, actor("A", 1, []) as any, grab())).toBeNull();
+  });
+
+  describe("collapseByName", () => {
+    const at = (creature: string, level: number | null) =>
+      toEmbeddedAbilityEntry(bestiary, actor(creature, level, []) as any, grab())!;
+
+    it("keeps the instance from the creature closest to the target level", () => {
+      const out = collapseByName([at("Low", 2), at("Near", 9), at("High", 20)], 10);
+      expect(out).toHaveLength(1);
+      expect(out[0]!.creature.name).toBe("Near");
+    });
+
+    it("counts how many creatures carried the name, rather than hiding them", () => {
+      const out = collapseByName([at("A", 1), at("B", 2), at("C", 3)], 2);
+      expect(out[0]!.sources).toBe(3);
+    });
+
+    it("prefers a known level to an unknown one, so the rescale is not a guess", () => {
+      const out = collapseByName([at("Unknown", null), at("Known", 18)], 1);
+      expect(out[0]!.creature.name).toBe("Known");
+    });
+
+    it("keeps distinct names apart", () => {
+      const other = toEmbeddedAbilityEntry(
+        bestiary, actor("X", 5, []) as any, grab({ _id: "b", name: "Constrict" })
+      )!;
+      expect(collapseByName([at("A", 5), other], 5)).toHaveLength(2);
+    });
+  });
+
+  it("sweeps Actor packs and survives a broken one", async () => {
+    const good = {
+      collection: bestiary.collection,
+      metadata: bestiary,
+      getIndex: async () => ({
+        contents: [actor("Bog Dragon", 11, [grab(), grab({ _id: "b", name: "Tail Lash" })])],
+      }),
+    };
+    const broken = {
+      collection: "pf2e.broken",
+      metadata: { ...bestiary, collection: "pf2e.broken", id: "broken" },
+      getIndex: async () => { throw new Error("pack is corrupt"); },
+    };
+    const items = { ...good, metadata: { ...bestiary, type: "Item" } };
+
+    const out = await buildEmbeddedAbilityIndex([good, broken, items] as any);
+    expect(out.map((e) => e.name).sort()).toEqual(["Grab", "Tail Lash"]);
+  });
+
+  it("asks the index for items and the creature's level", () => {
+    expect(EMBEDDED_INDEX_FIELDS).toContain("items");
+    expect(EMBEDDED_INDEX_FIELDS).toContain("system.details.level.value");
   });
 });
