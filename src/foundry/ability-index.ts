@@ -9,11 +9,22 @@
  *   - `pf2e.adventure-specific-actions` — 208.
  *   - `pf2e.actionspf2e` — 574 general actions.
  *
- * That is roughly 1,300 items, all reachable from a compendium *index* without
- * loading a single document. The far larger pool — around 30,000 abilities
- * embedded in bestiary creatures, five per creature — is deliberately not
- * indexed here: reaching it means loading every actor, which takes minutes.
- * That pool is served by copying from one creature at a time instead.
+ * That is roughly 1,400 items, all reachable from a compendium *index* without
+ * loading a single document.
+ *
+ * **The far larger pool is reachable too, and this file used to say otherwise.**
+ * It claimed the ~33,000 abilities embedded in bestiary creatures needed every
+ * actor loaded, "which takes minutes". Measured 23 Aug (tools/probe-embedded-
+ * index.js): loading the documents does cost about a minute, but
+ * `getIndex({fields: ["items"]})` returns the embedded items outright —
+ * 7,894 actors across 67 packs in **2.0 seconds**, yielding 33,268 abilities
+ * under 11,470 unique names. Dotted field paths work too, so
+ * `items.system.traits.value` fetches just what a filter needs.
+ *
+ * The index route also constructs no documents, so it produces none of the
+ * "evil is not a valid choice" warnings a bestiary sweep normally throws (§6.7).
+ *
+ * The claim was never measured. It shaped the design of this module for months.
  *
  * Item packs are not filtered by name. A world can carry ability packs from
  * modules or the GM's own homebrew, and hard-coding Paizo's four would make
