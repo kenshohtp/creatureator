@@ -13,29 +13,58 @@ GM Core is Remaster-era Paizo content published under the **ORC License**. The t
 reproduced here are game mechanics — numeric benchmarks for creature construction —
 and contain no creature names, descriptions, artwork, or setting material.
 
-> **Action required before first public release.** The ORC License requires a
-> specific, verbatim ATTRIBUTION NOTICE naming the Licensed Material and its
-> originator, reproduced in full. The text below is a placeholder drafted from
-> general understanding and **has not been checked against the official ORC License
-> text or Paizo's published attribution requirements**. Verify it against
-> <https://paizo.com/orclicense> and the ORC License itself before publishing, and
-> correct as needed. This is the one part of the project where getting it
-> approximately right is not good enough.
+---
 
-### Draft attribution notice — VERIFY BEFORE RELEASE
+## ⚠ Before any public release
+
+The ORC License requires two things in the product: an **ORC Notice** reproducing the
+licence's own wording, and an **Attribution Notice** crediting each upstream licensor
+of the Licensed Material used.
+
+Below, the ORC Notice is quoted from published ORC-licensed products and matches the
+wording used by other publishers. **The Paizo attribution line is not verified.**
+Paizo's ORC page does not publish per-product attribution text, so the correct
+copyright line and author list for GM Core must be taken from a primary source rather
+than reconstructed. Do not publish with a reconstructed one.
+
+**Where to get the primary source.** The exact line is printed in GM Core's own legal
+section, and is included in the Paizo premium Foundry module for GM Core. Copy it from
+there verbatim — the book you already own is the authority, not a web search.
+
+An earlier draft of this file carried a reconstructed author list. It has been removed
+rather than corrected, because a plausible-looking legal notice is more dangerous than
+an obviously incomplete one.
+
+### ORC Notice
+
+> This product is licensed under the ORC License held in the Library of Congress at
+> TX 9-307-067 and available online at various locations including
+> www.azoralaw.com/orclicense, www.gencon.com/orclicense, and others. All warranties
+> are disclaimed as set forth therein.
+
+### Attribution Notice — INCOMPLETE, fill from the primary source
 
 ```
 This product is based on the following Licensed Material:
 
-Pathfinder GM Core, © 2023, Paizo Inc.; Authors: Logan Bonner, Jason Bulmahn,
-James Jacobs, Luis Loza, Mark Seifter, and Michael Sayre.
+    [ GM Core copyright line, verbatim from the book's legal page or from the
+      Paizo premium Foundry module for GM Core. It names the product, the year,
+      Paizo Inc., and the authors. ]
 
-ORC Notice: This product is licensed under the ORC License held in the Library of
-Congress at TX 9-307-067 and available online at various locations including
-paizo.com/orclicense, and other public repositories.
+If you use our Licensed Material in your own published work, please credit us as
+follows:
 
-Attribution Notice: [complete per ORC License §5 before release]
+    Creatureator, © 2026, kenshohtp.
 ```
+
+### Checklist before release
+
+- [ ] GM Core attribution line copied verbatim from a primary source
+- [ ] ORC Notice reproduced in the module's distributed files, not only in this repo
+- [ ] Confirm no creature names, descriptions or artwork have entered `src/data/`
+- [ ] Confirm the release artifact contains no Paizo premium module content
+
+---
 
 ## What is deliberately NOT included
 
@@ -43,16 +72,16 @@ Attribution Notice: [complete per ORC License §5 before release]
 - Artwork or tokens of any kind
 - Any content from Paizo's premium Foundry modules
 
-Creature chassis are read at runtime from the user's own installed compendia. Nothing
-Paizo-owned beyond the mechanical tables above is redistributed in this repository or
-in any release artifact.
+Creature chassis and abilities are read at runtime from the user's own installed
+compendia. Nothing Paizo-owned beyond the mechanical tables above is redistributed in
+this repository or in any release artifact.
 
 ## Archives of Nethys
 
-Ability search queries the Archives of Nethys index at runtime. AoN is a
-community-run reference site and is not affiliated with this project. Queries are
-rate-limited and cached; the module degrades to compendium-only search when the
-service is unreachable.
+Archives of Nethys is used offline, by `tools/fetch-creature-tables.mjs` and
+`tools/fetch-validation-corpus.mjs`, to generate the tables and the validation corpus.
+The module itself does not query AoN at runtime today. AoN is a community-run reference
+site and is not affiliated with this project.
 
 ## Foundry Virtual Tabletop
 
