@@ -419,12 +419,47 @@ and would still be DC 15 flat at level 20.
 friends reach only 20.2% exact across 109 samples (Medicine 12.5%). Reported and
 left for the user.
 
-**Ability damage fits nothing.** Against Table 2-10 (Strike Damage) 13.8% exact;
-against Table 2-12 (Area Damage) 9.3%. Ability `@Damage` mixes headline area
-damage, small riders, persistent damage and healing, and until those can be told
-apart — the harvest did not keep traits, so area abilities cannot be separated
-out yet — the honest thing is to surface it and leave it alone. Revisiting means
-re-running the probe with `traits` and `@Template` presence retained.
+**Ability damage — Table 2-12 is the relevant one for area abilities, but there
+is no clean rule.**
+
+The first pass said "fits nothing" (13.8% against Table 2-10, 9.3% against 2-12)
+and blamed the harvest for not separating area abilities out. Both figures were
+wrong, and the harvest was fine: **the damage parser was dropping a third of the
+data.** `@Damage[7d8[poison]|options:area-damage]` carries a parameter after the
+terms, 801 of 2,368 damage elements have one, and the parser was treating the
+whole inner as a single term — so those 801 parsed as no terms at all. The
+measurement ran on 81 rows believing it had 799.
+
+The marker also solved the separation problem for free: `options:area-damage` is
+written into the element itself, so area abilities identify themselves and no
+extra harvest was needed.
+
+Re-measured on all 799:
+
+| | exact | ±1 | ±2 |
+|---|---|---|---|
+| area abilities vs **Table 2-12** (nearest of its two columns) | **30.5%** | 42.2% | 50.3% |
+| area abilities vs Table 2-10 | 10.5% | 32.5% | 45.9% |
+| everything else vs Table 2-12 | 8.9% | 21.0% | 31.3% |
+| everything else vs Table 2-10 | 13.8% | 33.8% | 46.3% |
+
+So Table 2-12 governs area abilities — three times better than the Strike table —
+but its two columns bracket the published values rather than matching them:
+22.0% land exactly on "limited use" (mean 11 *below* it), 8.5% exactly on
+"unlimited use" (mean 9 *above* it). Which column applies depends on the
+ability's Frequency, which the harvest did not capture, and even knowing it,
+only a fifth to a third land exactly.
+
+**Decision: still no automatic scaling, but stop saying nothing.** For an
+ability whose damage carries `options:area-damage`, the editor can offer the two
+Table 2-12 figures for the target level as explicit choices, labelled by column.
+That is a real answer for a third of ability damage. Everything else stays as it
+is: surfaced, explained, and left alone.
+
+Method note: this is the second time a measurement has been quietly running on a
+fraction of its data (the first was the classifier's nearest-match at 86%). Both
+were caught by looking at the counts rather than the percentages. Probes should
+print what they actually counted, not only what they concluded.
 
 Implemented in `src/scaling/rescale-ability.ts`. Every number left alone is
 reported as a note with its reason; nothing is silent.

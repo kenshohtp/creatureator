@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  damageParameters,
   findInlines,
   hasLegacyRoll,
   mapInlines,
@@ -237,5 +238,62 @@ describe("the whole Dragon Breath description", () => {
     expect(out).toContain("@Check[reflex|dc:22|basic|options:area-effect]");
     expect(out).toContain("@Damage[(@actor.level)d6[untyped]|options:area-damage]");
     expect(out).toContain("@Template[type:cone|distance:30]");
+  });
+});
+
+/**
+ * Damage elements carry parameters after the terms.
+ *
+ * `@Damage[7d8[poison]|options:area-damage]` is ordinary — 801 of the 2,368
+ * damage elements harvested from the bestiary have a trailing parameter. The
+ * first parser treated the whole inner as one term, so "7d8[poison]|options:
+ * area-damage" failed to parse and a third of all ability damage came back as
+ * no terms at all.
+ *
+ * It surfaced from a measurement running on 81 rows that should have had 799 —
+ * which is the argument for printing what a probe actually counted.
+ */
+describe("damage parameters", () => {
+  const dmg = (text: string) => findInlines(text)[0] as InlineDamage;
+
+  it("parses terms in front of a trailing parameter", () => {
+    expect(dmg("@Damage[7d8[poison]|options:area-damage]").terms).toEqual([
+      { expr: "7d8", damageType: "poison", isFlat: false, offset: 0 },
+    ]);
+  });
+
+  it("parses several terms in front of one", () => {
+    const d = dmg("@Damage[2d4[piercing],2d8[electricity]|options:area-damage]");
+    expect(d.terms.map((t) => `${t.expr} ${t.damageType}`)).toEqual([
+      "2d4 piercing",
+      "2d8 electricity",
+    ]);
+  });
+
+  it("exposes the parameters separately", () => {
+    expect(damageParameters(dmg("@Damage[7d8[poison]|options:area-damage]"))).toEqual([
+      "options:area-damage",
+    ]);
+    expect(damageParameters(dmg("@Damage[2d6[fire]]"))).toEqual([]);
+  });
+
+  it("does not mistake a pipe inside brackets for a parameter", () => {
+    const d = dmg("@Damage[(2d6+3)[fire]]");
+    expect(d.terms[0]).toMatchObject({ expr: "(2d6+3)", damageType: "fire" });
+    expect(damageParameters(d)).toEqual([]);
+  });
+
+  it("rewrites a term while keeping the parameters", () => {
+    const d = dmg("@Damage[7d8[poison]|options:area-damage]");
+    expect(withDamageTerm(d, 0, "10d8")).toBe(
+      "@Damage[10d8[poison]|options:area-damage]"
+    );
+  });
+
+  it("keeps a label as well as the parameters", () => {
+    const d = dmg("@Damage[7d8[poison]|options:area-damage]{Spore Explosion}");
+    expect(withDamageTerm(d, 0, "3d8")).toBe(
+      "@Damage[3d8[poison]|options:area-damage]{Spore Explosion}"
+    );
   });
 });

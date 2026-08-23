@@ -83,6 +83,24 @@ export interface InlineDamage extends Located {
   terms: DamageTerm[];
 }
 
+/** The trailing `|parameter` list on a damage element, if it has one. */
+export function damageParameters(damage: InlineDamage): string[] {
+  let depth = 0;
+  for (let i = 0; i < damage.inner.length; i++) {
+    const c = damage.inner[i];
+    if (c === "[" || c === "(") depth++;
+    else if (c === "]" || c === ")") depth--;
+    else if (c === "|" && depth === 0) {
+      return damage.inner
+        .slice(i + 1)
+        .split("|")
+        .map((p) => p.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
 export interface InlineTemplate extends Located {
   kind: "template";
 }
@@ -126,16 +144,40 @@ const DICE = /\d+d\d+/;
 function parseDamageTerms(inner: string): DamageTerm[] {
   const terms: DamageTerm[] = [];
 
+  /**
+   * A damage element is `terms | parameter | parameter …`, and the parameters
+   * are not damage.
+   *
+   * `@Damage[7d8[poison]|options:area-damage]` is normal — 801 of 2,368 damage
+   * elements sampled from the bestiary carry a trailing parameter. Parsing the
+   * whole inner as one term produced "7d8[poison]|options:area-damage", which
+   * is not a formula, so a third of all ability damage silently parsed as
+   * nothing at all. The measurement that was supposed to answer which table
+   * governs ability damage was quietly running on 81 rows instead of 801.
+   */
+  let end = inner.length;
+  let scanDepth = 0;
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i];
+    if (c === "[" || c === "(") scanDepth++;
+    else if (c === "]" || c === ")") scanDepth--;
+    else if (c === "|" && scanDepth === 0) {
+      end = i;
+      break;
+    }
+  }
+  const body = inner.slice(0, end);
+
   // Terms are comma-separated at depth 0: "1d6[mental],1d6[fire]".
   let depth = 0;
   let termStart = 0;
   const pieces: { text: string; offset: number }[] = [];
-  for (let i = 0; i <= inner.length; i++) {
-    const c = inner[i];
+  for (let i = 0; i <= body.length; i++) {
+    const c = body[i];
     if (c === "[" || c === "(") depth++;
     else if (c === "]" || c === ")") depth--;
-    if (i === inner.length || (c === "," && depth === 0)) {
-      pieces.push({ text: inner.slice(termStart, i), offset: termStart });
+    if (i === body.length || (c === "," && depth === 0)) {
+      pieces.push({ text: body.slice(termStart, i), offset: termStart });
       termStart = i + 1;
     }
   }
