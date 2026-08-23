@@ -8,9 +8,10 @@ on abilities from your compendia or from any other creature. The result is a rea
 NPC actor — indistinguishable from a hand-built one, and compatible with everything
 else in your world.
 
-> **Status: pre-alpha, and useful.** The full path works end to end: pick a chassis,
-> rescale, edit, attach abilities, create. It has not been released, packaged, or used
-> by anyone but its authors. See [open items](#open-items) before relying on it.
+> **Status: 0.1.0, pre-alpha, and useful.** The full path works end to end: pick a
+> chassis, rescale, edit, attach abilities, create. Released and installable — but
+> not yet used by anyone except its authors. Read
+> [ROADMAP.md](./ROADMAP.md) before relying on it.
 
 ![The editor, showing every statistic with its band](docs/images/editor.png)
 
@@ -40,6 +41,14 @@ else in your world.
 - Foundry VTT **v14+** (verified 14.366)
 - Pathfinder 2e system **8.2.0+** (verified 8.4.0)
 
+## Install
+
+In Foundry: **Add-on Modules → Install Module → Manifest URL**
+
+```
+https://github.com/kenshohtp/creatureator/releases/latest/download/module.json
+```
+
 ## Design principles
 
 **No adjustment is ever silent.** Every derived number carries its band and any
@@ -60,49 +69,15 @@ than by reasoning about what Paizo probably meant. Details and figures live in
 **Offsets survive.** A creature sitting one point above High stays one point above
 High after rescaling, rather than being snapped to the nearest table row.
 
-## Roadmap
+## Roadmap and open items
 
-### Done
+Both live in **[ROADMAP.md](./ROADMAP.md)** — what is next, what is a known issue,
+what was investigated and deliberately closed, and how to verify each one.
 
-- [x] Band classification, validated against 4,714 creatures
-- [x] GM Core tables generated from Archives of Nethys, committed
-- [x] Whole-creature rescaling with per-statistic band reporting
-- [x] Chassis picker with live preview and provenance
-- [x] Editor: every number editable, live bands, one-click override, rename
-- [x] Hit Points and weaknesses presented as one decision
-- [x] Save DCs inside ability text rescaled against Table 2-11
-- [x] Ability grafting from compendium items
-- [x] Copying abilities from another creature
-- [x] Writing and reflavouring abilities in place
-
-### Next
-
-- [ ] **Archives of Nethys as an ability source** — fetch an ability's text and build a
-      PF2e item from it. Widest coverage; the most parsing risk.
-- [ ] **Ability damage** — no published table fits it well enough to scale
-      automatically. Needs a finer measurement that separates area abilities from
-      riders before anything is decided. Currently surfaced and left alone.
-- [ ] **A rich text editor** for ability descriptions, if the raw-text field proves
-      too rough. It is deliberately raw today so that inline elements like
-      `@Check[fortitude|dc:22]` stay visible and editable.
-- [ ] **Packaging and release** — blocked on the licensing item below.
-
-### Deliberately later
-
-- [ ] **Language model assistance** for drafting novel abilities and flavour text.
-      The rule remains: a model may draft prose, but never decides a number. Anything
-      numeric it produces is validated against the tables and shown with its band like
-      any other statistic.
-
-## Open items
-
-| Item | Where |
-|---|---|
-| **ORC attribution is unverified** and blocks any public release | [NOTICE.md](./NOTICE.md) |
-| AC classifies at 86.8% against AoN's labels — investigated, no change made | ARCHITECTURE.md §7.6 |
-| Ability damage fits no published table (13.8% best case) | ARCHITECTURE.md §7.6 |
-| Strike damage keeps the chassis's die size, so `1d4+3` becomes `2d4+10` | ARCHITECTURE.md §7.3 |
-| Damage riders are never scaled | ARCHITECTURE.md §7.6 |
+It is kept in one place on purpose. This README used to carry its own roadmap and its
+own open-items table, and both had drifted: they still listed a released module as
+unreleased, and an investigation as pending after it had concluded. Parallel copies of
+a list are a reliable way to end up with a wrong one.
 
 ## Development
 

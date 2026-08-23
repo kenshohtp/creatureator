@@ -292,7 +292,15 @@ from a hand-built NPC and works with every other PF2e module.
 
 ---
 
-## 7. Open questions
+## 7. Questions, and how they were settled
+
+Every subsection here is closed: RESOLVED, DECIDED, or MEASURED. This is the decision
+record — what was asked, what evidence answered it, and what was chosen. It is
+append-only by nature and safe to trust as history.
+
+**Open work does not live here.** It lives in [ROADMAP.md](./ROADMAP.md), which is the
+single list of what is still to do. Keeping the two apart is deliberate: a decision
+record that also tries to be a to-do list stops being reliable as either.
 
 ### 7.1 Source for the Building Creatures tables — RESOLVED
 

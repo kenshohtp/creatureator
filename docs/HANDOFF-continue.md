@@ -41,7 +41,7 @@ creature easy to produce. It now can: the re-levelling, the ability grafting and
 the hand-written `Bound to Occam` have each been done end to end in a live world
 (§3). The 22 Aug revision of this line said abilities were "most of the value"
 and not yet possible; that stopped being true at `db4e916`. What is left is
-coverage and polish, not the core — see §10.
+coverage and polish, not the core — see [ROADMAP.md](../ROADMAP.md).
 
 **Dan is a non-software-engineer project lead.** He co-builds rather than writing code
 solo, reviews decisions before commits, and runs all terminal and Foundry commands
@@ -769,23 +769,12 @@ ability damage — now true only for non-area damage, and worded per case.
 
 ---
 
-## 10. Suggested first move
+## 10. What is open
 
-§9a is done, and so are all three ability routes that do not need the network
-(§7). The AoN gap has been measured and the importer is not worth building
-(§7a, ARCHITECTURE §7.7). ORC attribution is resolved (§6.4).
+**See [ROADMAP.md](../ROADMAP.md).** It is the single list of open work — next
+steps, known issues, deliberately-closed questions, and a Verify line for each.
 
-**0.1.0 is released** — <https://github.com/kenshohtp/creatureator/releases/tag/0.1.0>,
-manifest and zip both verified live. Procedure and traps in §6.10. What is left is
-optional, in rough order of value:
-
-1. **Install 0.1.0 from its manifest URL into a real Foundry.** The one path nothing
-   has exercised: manifest fetch, zip extraction, the `esmodules` / `styles` /
-   `languages` paths, and whether Foundry surfaces the `license` field added on
-   23 Aug without anyone watching it work. Mind the symlink collision — see §6.10.
-2. **AoN as search**, if it is wanted at all — and it is now optional rather than
-   central. Not an importer: search AoN, then resolve the hit to the local Foundry
-   item through the five normalisation tiers in ARCHITECTURE §7.7, which cover
-   98.3% of AoN's creatures. Text import is the fallback that fires on 1.7% and
-   can be deferred indefinitely.
-3. **LLM drafting** — still last, and the rules engine ships useful without it.
+This section used to carry its own copy. On 23 August it was found to be listing two
+built features as unbuilt while §3's table on the same page said otherwise, which is
+what a duplicated list does given time. §6 above stays as the record of *how* each
+issue was resolved; ROADMAP.md owns what is still open.
