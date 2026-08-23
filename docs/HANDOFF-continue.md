@@ -385,9 +385,45 @@ Install URL for Foundry (Add-on Modules → Install Module → Manifest URL):
 https://github.com/kenshohtp/creatureator/releases/latest/download/module.json
 ```
 
-**Not yet done:** installing from that URL into a real Foundry. The dev symlink at
-`G:\FVTT13test2\Data\modules\creatureator` points at the repo and would collide, so
-test on a different Foundry data path, or rename the symlink and restore it after.
+**Done 23 Aug.** 0.1.0 installed from the manifest URL and loaded cleanly: the
+`languages` path resolved (`Loaded localization file modules/creatureator/lang/en.json`),
+the esmodule initialised, the picker opened, 1,414 abilities indexed, no errors.
+The console reported frames as `creatureator.ts:144` rather than `.js`, so the shipped
+sourcemaps resolve against TypeScript source in a real install.
+
+**Swapping the dev symlink for a real install — order matters.** Both folders look
+identical in Explorer, and getting this wrong on 23 Aug nested the link inside the
+installed copy and then lost it. Nothing was damaged, but only because the repo was
+checked first.
+
+1. Close Foundry.
+2. **Identify before touching.** This is the step that was missing:
+   ```powershell
+   Get-Item "G:\FVTT13test2\Data\modules\creatureator" | Select-Object Name, LinkType, Target
+   ```
+   `LinkType` reads `SymbolicLink` for the dev link, empty for an installed copy.
+3. Park it, and confirm the destination is actually gone:
+   ```powershell
+   Move-Item "G:\FVTT13test2\Data\modules\creatureator" "G:\FVTT13test2\creatureator-symlink-parked"
+   Test-Path "G:\FVTT13test2\Data\modules\creatureator"   # must be False
+   ```
+4. Install from the manifest URL and test.
+5. Uninstall in Foundry, close it, then **delete the installed folder explicitly**.
+   Foundry leaves it behind, and `Move-Item` onto an existing folder moves *into* it
+   rather than replacing it. **Never `Remove-Item -Recurse` a folder that might still
+   contain the link** — PowerShell 5.1 follows reparse points and would delete the
+   repo through it.
+6. Restore, and verify it resolves rather than merely existing:
+   ```powershell
+   Move-Item "G:\FVTT13test2\creatureator-symlink-parked" "G:\FVTT13test2\Data\modules\creatureator"
+   Test-Path "G:\FVTT13test2\Data\modules\creatureator\src"   # True: src exists only in the repo
+   ```
+
+Losing the link damages nothing. Recreate it from an **admin** shell:
+
+```powershell
+New-Item -ItemType SymbolicLink -Path "G:\FVTT13test2\Data\modules\creatureator" -Target "C:\Projects\creatureator"
+```
 
 ### 6.9 Claude cannot run the real test suite
 

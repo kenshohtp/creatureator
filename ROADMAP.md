@@ -45,26 +45,22 @@ by remembering.
 ## Open — next
 
 ### 1. Install 0.1.0 from its manifest URL into a real Foundry
-**Open.** The only part of the release chain nothing has exercised: manifest
-fetch, zip extraction, the `esmodules` / `styles` / `languages` paths, and
-whether Foundry surfaces the `license` field added on 23 Aug without anyone
-watching it work.
+**Done, 23 Aug.** Installed from the manifest URL and loaded cleanly: the
+`languages` path resolved, the esmodule initialised, the sidebar button opened the
+picker, 1,414 abilities indexed, no console errors. Procedure and the symlink
+hazard are in HANDOFF §6.10 — read it before repeating this.
 
-Mind the collision: the dev symlink at `G:\FVTT13test2\Data\modules\creatureator`
-points at the repo. Install into a different Foundry data path, or rename the
-symlink and restore it afterwards.
+**Still unconfirmed:** whether Foundry's module-list entry renders the `license`
+field. Nobody looked at that screen. **Verify:** open Add-on Modules with the
+release installed and check for a licence link on the Creatureator entry.
 
-**Verify:** module appears in Add-on Modules, enables without console errors, the
-sidebar button opens the picker, and the module-list entry shows a licence link.
-
-### 2. Decide whether sourcemaps ship
-**Open.** They are 424 kB of the 665 kB archive. Dropping them means either
-turning maps off in `vite.config.ts` for release builds, or leaving
-`//# sourceMappingURL` comments pointing at files that are not there, which
-gives every user 404s in the console. Currently they ship.
-
-**Verify:** `npm run package` reports the new size; no sourcemap 404s in a
-Foundry console after installing.
+### 2. Sourcemaps
+**Closed 23 Aug — they ship.** They are 424 kB of the 665 kB archive, which looked
+like waste until the install test showed the console reporting frames as
+`creatureator.ts:144` rather than a minified `.js` offset. They buy real stack
+traces against TypeScript source in a user's install, for 130 kB compressed. The
+alternative — dropping the maps while the emitted JS still carries
+`//# sourceMappingURL` — would give every user 404s instead.
 
 ### 3. Re-read README against the redistribute-vs-use distinction
 **Open.** `NOTICE.md` and `ARCHITECTURE.md` §7.4 were corrected on 23 Aug to
