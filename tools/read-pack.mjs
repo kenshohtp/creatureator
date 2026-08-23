@@ -231,6 +231,14 @@ function main(argv) {
   if (flag("--json")) { console.log(JSON.stringify(rows, null, 1)); return; }
   if (flag("--names")) { for (const r of rows.sort((a, b) => a.name.localeCompare(b.name))) console.log(r.name); return; }
 
+  // Not the guard that would have caught the Windows CLI bug — that one stopped
+  // main() from running at all — but a run that reads packs and finds nothing in
+  // them is almost always a wrong path or a typo'd --type, and saying so beats
+  // printing a confident row of zeroes.
+  if (rows.length === 0) {
+    console.warn(`no documents matched${wantType ? ` for --type ${wantType}` : ""} in ${dirs.length} pack(s) under ${root}`);
+  }
+
   console.log(`packs read : ${dirs.length}`);
   console.log(`documents  : ${rows.length}${wantType ? ` (type=${wantType})` : ""}`);
   console.log(`unique names: ${new Set(rows.map((r) => r.name)).size}`);

@@ -511,6 +511,17 @@ said it was. A handoff is a summary, and summaries rot. Check a claim against th
 code before acting on it, especially a claim that something is *missing*: it
 costs one grep and it is the cheapest verification in the project.
 
+**Verify where it will actually run.** `tools/read-pack.mjs` was written and checked
+on the Linux side, committed, and did nothing whatsoever on Windows: its CLI guard
+compared `` `file://${process.argv[1]}` `` against `import.meta.url`, which never
+matches once the path has a drive letter and backslashes. It exited 0 and printed
+nothing, so the terminal gave no hint anything was wrong and it was committed on the
+strength of a passing run in the wrong place. The environment table in §6.9 — which
+says in as many words that anything in `tools/` has to run on Windows with node — was
+written in the same commit that broke the rule. This is §6.1 from another angle: the
+live Foundry render caught two bugs the sandbox could not, and Windows caught one
+Linux could not.
+
 **Dan runs everything.** Give exact copy-pasteable commands, correct paths, and say what
 the expected output looks like so a failure is recognisable.
 
