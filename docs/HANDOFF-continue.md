@@ -347,8 +347,13 @@ writes `.git/index.lock` and cannot remove it, which blocks Dan's next commit.
 ```powershell
 npm run check
 npm run package
-gh release create 0.1.0 module.zip module.json --title "Creatureator 0.1.0" --notes "..."
+gh release create 0.1.1 module.zip module.json --title "Creatureator 0.1.1" --notes "..."
 ```
+
+**Always pass the tag.** `gh release create` with no tag argument offers a picker of
+*existing* tags, and picking one silently targets a release that already exists. Bump
+`module.json` **before** packaging, too: the manifest goes inside the zip, so a zip
+built before the bump advertises the old version and Foundry never offers the update.
 
 `gh` (GitHub CLI 2.98) is installed on the Windows box and authenticated as `kenshohtp`.
 It was installed with `winget install --id GitHub.cli`; a **new shell** is needed

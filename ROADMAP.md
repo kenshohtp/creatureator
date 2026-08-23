@@ -63,14 +63,17 @@ marked Done is how a list stops being read.
 PF2e stores the type. "persistent fire" would read better. One `replace` in
 `inlineToText`, whenever it irritates someone enough.
 
-### Cut 0.1.1
-**Open, small.** The released artifact predates today's fixes and declares
-`verified: "14.366"` while Foundry is now on 14.367 — which shows an amber badge and
-loads fine, so this is tidiness rather than repair. Bump `verified` only after loading
-the module on 367.
+### Make `npm run package` check the version it is shipping
+**Open, small but real.** Nothing stops the script building a zip whose `module.json`
+version does not match the tag about to be released. That nearly shipped on 23 Aug:
+`gh release create` with no tag argument offers *existing* tags, `0.1.0` was selected,
+and the packaged manifest still said `0.1.0` — a release that would have advertised
+itself as the version already installed, so Foundry would never have offered it as an
+update.
 
-**Verify:** `npm run package`, `gh release create`, then the manifest URL check in
-HANDOFF §6.10.
+Two guards: `node tools/package-module.mjs --expect 0.1.1` refusing on mismatch, and
+a line in HANDOFF §6.10 saying always to pass the tag to `gh release create`
+explicitly rather than picking from the list.
 
 ### Language model assistance
 **Open, deliberately last.** The rules engine ships useful with no API key. When
@@ -111,6 +114,11 @@ creature is shared with someone lacking the source.
 ## Done
 
 Completed work, kept for the reasoning rather than the tick.
+
+### 0.1.1 released
+**Done 23 Aug.** <https://github.com/kenshohtp/creatureator/releases/tag/0.1.1> —
+carries the ability search, and declares `verified: "14.367"` now that the module has
+actually been run on that build. Manifest URL checked live: `0.1.1`, `14.367`.
 
 ### Search every creature's abilities
 **Done 23 Aug.** The ability panel's "From another creature" tab now searches all
