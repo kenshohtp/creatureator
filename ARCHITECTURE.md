@@ -734,7 +734,9 @@ invent numbers with no published basis.
 corpus: it does not.
 
 **Method.** Foundry's packs are LevelDB, so they were read straight off disk with a
-dependency-free SSTable reader rather than through Foundry. `strings` on the `.ldb`
+dependency-free SSTable reader rather than through Foundry — since committed as
+`tools/read-pack.mjs`, which reproduces this measurement in about three seconds with
+Foundry closed (`node tools/read-pack.mjs <packs-root> --all --type npc`). `strings` on the `.ldb`
 files was tried first and rejected: it finds only records sitting in uncompressed
 blocks and silently misses everything inside a Snappy block, which for a gap
 measurement manufactures false absences. The reader was validated by known answer —

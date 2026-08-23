@@ -325,7 +325,24 @@ writes `.git/index.lock` and cannot remove it, which blocks Dan's next commit.
 ### 6.9 Claude cannot run the real test suite
 
 The sandbox's npm registry is blocked — `npm install` fails on every package —
-so Claude cannot install vitest, vite or typescript in its own workspace.
+so Claude cannot install vitest, vite or typescript in its own workspace. **pip is
+blocked the same way** (verified 23 Aug): PyPI answers "no matching distribution" for
+everything, so Python libraries are no more reachable than npm ones. Anything Claude
+needs, it writes from scratch; `tools/read-pack.mjs` is what that looks like in
+practice.
+
+**There are three environments and they are easy to confuse.**
+
+| | runs where | has |
+|---|---|---|
+| Cloud sandbox | Anthropic's container | node, python3, `tsc`, `tsx`; no npm, no PyPI |
+| Device bridge | a Linux VM on Dan's machine, with granted folders mounted | node 22, python3; no npm, no PyPI; sees the repo and `G:\FVTT13test2` |
+| Dan's Windows | PowerShell 5.1 | the real toolchain; the only place `npm run check` counts |
+
+Files written by one are invisible to the others except through the mounted folders,
+and only the bridge can see Dan's disk. Anything committed to `tools/` has to run on
+**Windows with node** — which is why `read-pack.mjs` is JavaScript, though it was
+prototyped in Python.
 
 What worked all session, and is set up in `~/work/creatureator` in a fresh
 sandbox if recreated:
@@ -530,6 +547,7 @@ tools/
   probe-abilities.js          where abilities live, and how their numbers are written
   probe-ability-numbers.js    harvests DCs and damage with creature levels
   probe-area-frequency.js     Table 2-12 column signals: frequency, prose recharge
+  read-pack.mjs               read a Foundry LevelDB pack off disk, no Foundry needed
   setup-github-mcp.ps1/.sh    see 6.5; do not expect them to work
   restore-mcp-servers.ps1     recovery for the BOM incident
 docs/
