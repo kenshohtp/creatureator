@@ -342,6 +342,53 @@ files — extract to a temp directory and `cat` each file into place instead.
 Never run `git status` through the bridge without `--no-optional-locks`: it
 writes `.git/index.lock` and cannot remove it, which blocks Dan's next commit.
 
+### 6.10 Cutting a release — done once, 0.1.0, 23 Aug 2026
+
+```powershell
+npm run check
+npm run package
+gh release create 0.1.0 module.zip module.json --title "Creatureator 0.1.0" --notes "..."
+```
+
+`gh` (GitHub CLI 2.98) is installed on the Windows box and authenticated as `kenshohtp`.
+It was installed with `winget install --id GitHub.cli`; a **new shell** is needed
+afterwards for PATH, and `cd` back into the repo before running `gh`, which infers the
+project from the git remote.
+
+Two things that will silently break the install URL:
+
+- **Attach both `module.zip` and `module.json`.** `module.json`'s `manifest` field
+  points at `releases/latest/download/module.json`, so Foundry fetches the manifest
+  from the release *assets*. A release carrying only the zip installs from a 404.
+- **Do not tick "Set as a pre-release."** GitHub's `latest` skips pre-releases, so
+  both `manifest` and `download` stop resolving. The version number carries the
+  maturity signal; the checkbox breaks the plumbing.
+
+Verified after publishing:
+
+```powershell
+$r = Invoke-WebRequest -UseBasicParsing "https://github.com/kenshohtp/creatureator/releases/latest/download/module.json"
+$json = [Text.Encoding]::UTF8.GetString($r.Content) | ConvertFrom-Json
+$json | Select-Object id, version, license, readme
+(Invoke-WebRequest -UseBasicParsing -Method Head $json.download).Headers.'Content-Length'
+```
+
+`-UseBasicParsing` matters twice over: without it PowerShell 5.1 runs the response
+through the IE engine and prompts about script execution, and because GitHub serves
+release assets as `application/octet-stream`, `$r.Content` comes back as a **byte
+array** — piping it straight to `ConvertFrom-Json` yields an object with no fields and
+looks like a broken release. Decode it first.
+
+Install URL for Foundry (Add-on Modules → Install Module → Manifest URL):
+
+```
+https://github.com/kenshohtp/creatureator/releases/latest/download/module.json
+```
+
+**Not yet done:** installing from that URL into a real Foundry. The dev symlink at
+`G:\FVTT13test2\Data\modules\creatureator` points at the repo and would collide, so
+test on a different Foundry data path, or rename the symlink and restore it after.
+
 ### 6.9 Claude cannot run the real test suite
 
 The sandbox's npm registry is blocked — `npm install` fails on every package —
@@ -728,16 +775,14 @@ ability damage — now true only for non-area damage, and worded per case.
 (§7). The AoN gap has been measured and the importer is not worth building
 (§7a, ARCHITECTURE §7.7). ORC attribution is resolved (§6.4).
 
-**Nothing is blocking a release.** What is left is optional, in rough order of value:
+**0.1.0 is released** — <https://github.com/kenshohtp/creatureator/releases/tag/0.1.0>,
+manifest and zip both verified live. Procedure and traps in §6.10. What is left is
+optional, in rough order of value:
 
-1. **Cut a release.** `npm run package` builds `module.zip` from a strict allowlist
-   and refuses to produce one without `NOTICE.md` or `LICENSE`. Attach it to a GitHub
-   release tagged to match `module.json`'s version — `module.json` already points its
-   `download` at `releases/latest/download/module.zip`. Every checklist item in
-   `NOTICE.md` is now ticked, the last one — no creature names in `src/data/` —
-   via `node tools/check-tables-content.mjs`, which prints all 140 non-numeric
-   strings in the generated tables for a human to scan. Re-run it after
-   `npm run fetch:tables`.
+1. **Install 0.1.0 from its manifest URL into a real Foundry.** The one path nothing
+   has exercised: manifest fetch, zip extraction, the `esmodules` / `styles` /
+   `languages` paths, and whether Foundry surfaces the `license` field added on
+   23 Aug without anyone watching it work. Mind the symlink collision — see §6.10.
 2. **AoN as search**, if it is wanted at all — and it is now optional rather than
    central. Not an importer: search AoN, then resolve the hit to the local Foundry
    item through the five normalisation tiers in ARCHITECTURE §7.7, which cover
