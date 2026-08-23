@@ -4,7 +4,12 @@
 needed to resolve the open issues and continue building, without re-deriving
 decisions or re-discovering data.
 
-Last updated: 22 Aug 2026, at commit `176c1b3` — **pushed to GitHub**.
+Last updated: 23 Aug 2026, against commit `b65f6ee`.
+
+**Read §8's note on drift first.** The 22 Aug revision of this file said two
+built features were not built. Every "not built" claim below has been checked
+against the repo as of `b65f6ee`; claims about what *works* have not been
+re-verified beyond what §3 already records.
 
 ---
 
@@ -21,8 +26,11 @@ template and edit", with LLM assistance for generating abilities.
 Kinetic Husk" (Creature 5) from the Husk Zombie (Creature 2, Book of the Dead):
 re-levelled, given three kineticist-flavoured impulse actions, and a custom
 `Bound to Occam` leash ability that exists in no book. The module should make that
-creature easy to produce. Today it can do the re-levelling; it cannot yet do the
-abilities, which is most of the value.
+creature easy to produce. It now can: the re-levelling, the ability grafting and
+the hand-written `Bound to Occam` have each been done end to end in a live world
+(§3). The 22 Aug revision of this line said abilities were "most of the value"
+and not yet possible; that stopped being true at `db4e916`. What is left is
+coverage and polish, not the core — see §10.
 
 **Dan is a non-software-engineer project lead.** He co-builds rather than writing code
 solo, reviews decisions before commits, and runs all terminal and Foundry commands
@@ -94,9 +102,10 @@ is needed. A *server* restart is only needed when adding a new module.
 
 ### What does NOT exist
 
-- **AoN as an ability source.** Two of the three authoring routes are built —
-  copy from a compendium or another creature, and write one by hand. Fetching an
-  ability's text from Archives of Nethys is not.
+- **AoN as an ability source.** Three of the four routes are built — copy from
+  a compendium item, copy from another creature, and write one by hand (§7).
+  Fetching an ability's text from Archives of Nethys is not, and §7a argues the
+  case for it is weaker than it looks.
 - **Automatic ability damage scaling.** Still deliberately absent, and should
   stay absent — no table earns it. What now exists is the offer: damage marked
   `options:area-damage` carries Table 2-12's two figures for the target level as
@@ -214,8 +223,9 @@ before publishing anything.** Not urgent at pre-alpha; do not let it ship unchec
 
 ### 6.5 GitHub — Dan pushes; Claude still cannot
 
-**The repo is current.** `main` is pushed through `176c1b3`, including the
-rewritten README with screenshots. Dan runs `git push origin main` himself and
+**The repo is current.** `main` is pushed through `b65f6ee` — verified 23 Aug,
+local `HEAD` and `origin/main` are the same commit — including the rewritten
+README with screenshots. Dan runs `git push origin main` himself and
 it works.
 
 Claude still has no path to GitHub from the sandbox:
@@ -247,7 +257,8 @@ run on Windows when it matters.
 ### 6.6 Cosmetic
 
 - `1d4+3 → 2d4+10` — preserving a d4 chassis means the flat modifier carries the
-  growth. Documented trade in §7.3 (creature identity over idiomatic dice), but a
+  growth. Documented trade in ARCHITECTURE.md §7.3 (creature identity over
+  idiomatic dice), but a
   level-10 dagger NPC looks odd. Published equivalents sit near `2d4+8`.
 - Riders are never scaled. 59 of 71 sampled are uncategorised energy dice, so scaling
   them later would be easy if the decision changes.
@@ -281,6 +292,13 @@ pattern.
 
 ### 6.8 Moving files INTO the repo from a sandboxed session
 
+**Superseded when a folder is connected (23 Aug).** With
+`C:\Projects\creatureator` granted through the desktop app's folder access, the
+bridge is read *and write*: Claude edits files in place with ordinary tools and
+none of the tar dance below is needed. The `--no-optional-locks` rule still
+applies, and the bridge's view of the repo can still lag Windows. The rest of
+this section applies only when no folder is connected.
+
 Claude cannot write to the repo directly and cannot push to GitHub (6.5). What
 worked all session: Claude tars the changed files, sends the archive, it is
 committed to `scripts\` (gitignored, and `npm run build` empties it), then
@@ -311,17 +329,27 @@ every case seen, but it is a stand-in.
 
 ## 7. What comes next
 
-### Ability grafting — route 1 of 3 is BUILT
+### Ability grafting — three of four routes are BUILT
 
-Three sources, resolution order:
+Four sources, resolution order:
 
 1. **Foundry compendium item** — BUILT. `src/foundry/ability-index.ts` indexes
    every Item pack and keeps anything of type `action`: about 1,300 rows across
    the bestiary glossary (55), the family glossary (482), adventure-specific
    actions (208) and general actions (574), plus any module or homebrew pack.
    Read from compendium *indexes*; no documents load until something is attached.
-2. **AoN** — not built. Fetch text, generate a PF2e `action` item.
-3. **Hand-authored** — not built. For novel content like `Bound to Occam`.
+2. **Another creature's own abilities** — BUILT, at `db4e916`.
+   `#abilityMode` in `src/foundry/picker.ts` toggles the panel between the
+   shared index and a donor creature; `#browseCreature()` loads one actor on
+   demand and caches its source beside the chassis previews, so comparing
+   several donors costs one read each. This reaches the ~30,000-ability pool
+   without indexing it.
+3. **Hand-authored** — BUILT. `addAbility()` in `src/editor/edit-session.ts`
+   pushes a blank `action` item marked `authored: true`, which the editor then
+   treats like any other row. This is how `Bound to Occam` gets written.
+4. **AoN** — not built. Fetch text, generate a PF2e `action` item. Read §7a
+   before starting: a probe has already established the shape of the data and
+   where the difficulty actually is.
 
 What a graft does, all of it reported rather than assumed
 (`src/pf2e/ability.ts`):
@@ -337,21 +365,74 @@ carries no level of its own, so there is no way to know what a DC inside it was
 balanced against. It defaults to the creature's level, so the default action
 changes nothing.
 
-**Not built:** copying an ability off another *creature*. That is where the real
-mass is — roughly 30,000 embedded abilities, five per creature — and it needs the
-chassis picker rather than the ability index, because indexing it means loading
-every actor.
+That question is asked only of route 1. A donor *creature* has a level, so
+`#copyFromCreature()` passes `fromLevel: from.level` and the DC rescale is exact
+with nothing to ask.
 
-### Custom ability authoring — all three routes
+**This section claimed until 23 Aug that copying off another creature was not
+built.** It had been built nine commits earlier, at `db4e916`, and §3's
+verification table said so on the same page. Do not act on a "not built" line in
+this document without grepping for it first — see §8.
+
+### 7a. AoN probe findings (23 Aug) — read before building the importer
+
+Four documents pulled from AoN's Elasticsearch and read in full: the `action`
+Breath Weapon, the `creature-ability` Grab, Husk Zombie (`creature-1919`) and
+Adult Bog Dragon (`creature-4116`). What they establish:
+
+**There is an anchor for the parse.** Every creature document carries
+`creature_ability`, an array of ability *names* — Husk Zombie's is
+`["Slow","Sneak Attack","Sudden Surge"]`. An extractor does not have to discover
+abilities, only locate names it was handed, which means it can *refuse* rather
+than guess when it cannot find one. `trait` and `actions` ("Two Actions",
+"Reaction") arrive as clean structured fields; neither needs parsing.
+
+**The markdown is not reliably well-formed.** From the Bog Dragon's defences
+block, verbatim:
+
+    **[**Frightful Presence**](/MonsterAbilities.aspx?ID=64)** (...) 90 feet, DC 30<br />Tail Lash <actions string="Reaction" /> **Trigger** ...
+
+Two abilities on one line separated by a literal `<br />`; the first has bold
+nested inside a link inside bold; the second is not bolded at all. Any
+`**Name**`-anchored parse loses Tail Lash silently — and would pass a test
+written from the Husk Zombie, which is clean. Abilities also live in **two**
+regions, not one: Frightful Presence and Tail Lash sit in the defences column
+beside AC and Immunities, the other seven below Speed and the Strikes.
+
+**The real work is not extraction.** AoN writes numbers as prose — `DC 27
+Fortitude`, `(DC 30 basic Reflex save)`, `9d8 acid damage in a 40-foot cone`.
+There are no `@Check` or `@Damage` inline elements anywhere. Everything the
+module does to ability numbers — `rescale-ability.ts`, the §9a Table 2-12 offer,
+DC band re-derivation — operates on those elements. So an AoN import needs a
+**prose → inline-element converter** before it connects to any of it. Detecting
+"40-foot cone" → `options:area-damage` would feed §9a directly, but it is a
+second component with its own failure modes, and it is where the time will go.
+
+**Two smaller traps.** AoN's markdown text is not always remastered even when its
+structured fields are: Husk Zombie's text says "flat-footed" and "positive"
+while its `weakness` field says `vitality`. And alignment appears as a trait
+`"NE"`, which `LEGACY_TRAITS` in `src/pf2e/ability.ts` would not catch — it
+strips `good`/`evil`/`lawful`/`chaotic`, not the two-letter forms. Links are all
+relative (`/Conditions.aspx?ID=61`) and need rewriting or stripping.
+
+**The probe instrument.** Dan's machine has an `aon__search` MCP that returns raw
+`_source` documents — a thin wrapper over the Elasticsearch endpoint in §5, and
+the fastest way to look at real AoN data from a session. It is a probe tool, not
+the shipping path: the module fetches the endpoint directly from the Foundry
+origin.
+
+### Custom ability authoring — two of three routes built
 
 Dan's decision, verbatim: *"it can be all 3, let the user type, pick an LLM to create
 it for them OR copy and modify."*
 
-- **Type it** — form for name, action cost, traits, description.
-- **LLM drafts it** — plain-language description in, draft out, then edit.
-- **Copy and modify** — find something close, attach, edit.
+- **Type it** — BUILT. Form for name, action cost, traits, description.
+- **Copy and modify** — BUILT, from a compendium item or from another creature.
+- **LLM drafts it** — not built. Plain-language description in, draft out, then
+  edit.
 
-All three converge on the same PF2e `action` item.
+All three converge on the same PF2e `action` item, which is why the third can be
+added without disturbing the two that work.
 
 ### LLM integration
 
@@ -382,6 +463,13 @@ data was authored by Paizo, not by us.
 **Read the output, not just the assertions.** Two bugs were spotted by looking at
 printed summaries — `1d6+9` and `Compendium.undefined` — that assertions passed over.
 Keep `summarise()` noisy in test runs.
+
+**This document drifts from the repo; grep before you build.** On 23 Aug a
+session was three probes into designing a feature that had been in `main` since
+`db4e916`, because §7 said it was not built while §3's table — on the same page —
+said it was. A handoff is a summary, and summaries rot. Check a claim against the
+code before acting on it, especially a claim that something is *missing*: it
+costs one grep and it is the cheapest verification in the project.
 
 **Dan runs everything.** Give exact copy-pasteable commands, correct paths, and say what
 the expected output looks like so a failure is recognisable.
@@ -418,10 +506,12 @@ tools/
   probe-*.js                  live Foundry probes
   probe-abilities.js          where abilities live, and how their numbers are written
   probe-ability-numbers.js    harvests DCs and damage with creature levels
+  probe-area-frequency.js     Table 2-12 column signals: frequency, prose recharge
   setup-github-mcp.ps1/.sh    see 6.5; do not expect them to work
   restore-mcp-servers.ps1     recovery for the BOM incident
 docs/
   DEV-SETUP.md             cross-machine setup, GitHub MCP post-mortem
+  HANDOFF-continue.md      this file
   HANDOFF-dev-server.md    Mac mini evaluation brief
 ```
 
@@ -552,11 +642,19 @@ ability damage — now true only for non-area damage, and worded per case.
 
 ## 10. Suggested first move
 
-§9a is done. In rough order of value:
+§9a is done, and so are all three ability routes that do not need the network
+(§7). What is genuinely open, in rough order of value:
 
-1. **Archives of Nethys as a third ability source** — fetch text, build an item.
-   Widest coverage, most parsing risk. AoN's Elasticsearch allows CORS from a
-   Foundry origin (§5).
-2. **ORC attribution** (§6.4, NOTICE.md) — blocks any public release. Dan owns
+1. **Measure the AoN gap before building an importer.** The unexamined
+   assumption is that AoN carries content Foundry does not. It may largely not:
+   for anything in a book Foundry ships, the compendium item already exists with
+   correct inline syntax, rule elements and remastered text, and parsing AoN
+   prose to rebuild it would be strictly worse — the §4 argument, applied to
+   abilities instead of creatures. Diff AoN's sources against the local
+   compendium index and find out. If the gap is thin, AoN's value is *search*,
+   not import, and that is a much smaller build.
+2. **Archives of Nethys as a fourth ability source**, if step 1 justifies it.
+   §7a records what the data actually looks like and where the difficulty is.
+3. **ORC attribution** (§6.4, NOTICE.md) — blocks any public release. Dan owns
    the primary source; it is one copied line, not research.
-3. **LLM drafting** — still last, and the rules engine ships useful without it.
+4. **LLM drafting** — still last, and the rules engine ships useful without it.
