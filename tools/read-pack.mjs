@@ -35,6 +35,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 import { join, basename } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const FOOTER_LEN = 48;
 const MAGIC_LO = 0x8b80fb57;
@@ -239,4 +240,9 @@ function main(argv) {
   for (const [b, n] of [...byBook].sort((a, b) => b[1] - a[1]).slice(0, 10)) console.log(`  ${String(n).padStart(6)}  ${b}`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main(process.argv.slice(2));
+// `file://${argv[1]}` looks right and is wrong on Windows: argv[1] is
+// C:\Projects\...\read-pack.mjs while import.meta.url is
+// file:///C:/Projects/.../read-pack.mjs, so the comparison fails, main() never
+// runs, and the process exits 0 having printed nothing. pathToFileURL is the
+// only form that agrees on both platforms.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) main(process.argv.slice(2));
