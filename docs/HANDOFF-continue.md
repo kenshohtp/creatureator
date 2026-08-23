@@ -217,10 +217,23 @@ now real tests.
 
 ### 6.4 ORC attribution — blocking any public release
 
-`NOTICE.md` contains a **drafted, unverified** ORC attribution notice. The generated
-tables in `src/data/creature-tables.ts` are Open Game Content and the ORC License
-requires a specific verbatim notice. **Verify against <https://paizo.com/orclicense>
-before publishing anything.** Not urgent at pre-alpha; do not let it ship unchecked.
+The generated tables in `src/data/creature-tables.ts` are Open Game Content and the
+ORC License requires two things: an **ORC Notice** in specific wording, and an
+**Attribution Notice** crediting each upstream licensor.
+
+**The ORC Notice is done** (23 Aug). Its wording was checked against Paizo's own
+licence page and the PF2e system's `licenses/ORCLicense.md`, which agree — and the
+draft in `NOTICE.md` did not match either. It read "held in the Library of Congress"
+with a list of mirror URLs; both sources read "located at" with no mirrors. Corrected.
+Worth noting the draft had *not* been flagged as uncertain, while the attribution line
+beside it had — the flagged half was fine and the confident half was wrong.
+
+**The attribution line is still open**, and it is the last thing blocking a release.
+It must be copied verbatim from GM Core's own legal page. The PF2e system ships a
+populated GM Core entry, but three of that file's fifty entries read `Authors: TBD.`,
+so it is a community transcription — good for diffing against the book once the real
+line is in hand, not good as the source. Dan owns the book; this is a copy job, not
+research.
 
 ### 6.5 GitHub — Dan pushes; Claude still cannot
 

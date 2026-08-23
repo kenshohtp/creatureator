@@ -21,8 +21,8 @@ The ORC License requires two things in the product: an **ORC Notice** reproducin
 licence's own wording, and an **Attribution Notice** crediting each upstream licensor
 of the Licensed Material used.
 
-Below, the ORC Notice is quoted from published ORC-licensed products and matches the
-wording used by other publishers. **The Paizo attribution line is not verified.**
+Below, the ORC Notice has been checked against Paizo's own ORC licence page
+(23 Aug 2026). **The Paizo attribution line is still not verified.**
 Paizo's ORC page does not publish per-product attribution text, so the correct
 copyright line and author list for GM Core must be taken from a primary source rather
 than reconstructed. Do not publish with a reconstructed one.
@@ -31,16 +31,30 @@ than reconstructed. Do not publish with a reconstructed one.
 section, and is included in the Paizo premium Foundry module for GM Core. Copy it from
 there verbatim — the book you already own is the authority, not a web search.
 
+**A cross-check, not a source.** The PF2e Foundry system ships a hand-maintained
+transcription at `Data/systems/pf2e/licenses/ORCLicense.md`, and its GM Core entry is
+populated. Do not copy it in. Three of that file's fifty entries read `Authors: TBD.`,
+which is proof it is a community transcription rather than an authority. It is useful
+only for diffing against the book *after* the real line has been copied, so that
+twenty-seven author names need not be checked by eye.
+
 An earlier draft of this file carried a reconstructed author list. It has been removed
 rather than corrected, because a plausible-looking legal notice is more dangerous than
 an obviously incomplete one.
 
 ### ORC Notice
 
-> This product is licensed under the ORC License held in the Library of Congress at
-> TX 9-307-067 and available online at various locations including
-> www.azoralaw.com/orclicense, www.gencon.com/orclicense, and others. All warranties
-> are disclaimed as set forth therein.
+Checked 23 Aug 2026 against two independent sources that agree: Paizo's own ORC
+licence page, and the PF2e Foundry system's `licenses/ORCLicense.md`.
+
+> This product is licensed under the ORC License located at the Library of Congress
+> at TX 9-307-067 and available online at various locations. All warranties are
+> disclaimed as set forth therein.
+
+An earlier draft of this block read "held in the Library of Congress" and appended a
+list of mirror URLs (azoralaw, gencon). Both sources above read "located at" and
+neither lists mirrors. The earlier wording is in use by some publishers, which is why
+it looked right — it is not the wording Paizo publishes.
 
 ### Attribution Notice — INCOMPLETE, fill from the primary source
 
@@ -59,6 +73,7 @@ follows:
 
 ### Checklist before release
 
+- [x] ORC Notice wording checked against Paizo's licence page (23 Aug 2026)
 - [ ] GM Core attribution line copied verbatim from a primary source
 - [ ] ORC Notice reproduced in the module's distributed files, not only in this repo
 - [ ] Confirm no creature names, descriptions or artwork have entered `src/data/`
