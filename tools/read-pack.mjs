@@ -26,6 +26,13 @@
  * reproduce three numbers this project previously obtained through Foundry's own
  * API — see ARCHITECTURE.md §7.7.
  *
+ * Close Foundry before trusting a count. These are live databases: with Foundry
+ * running, records move between the SSTables and the write-ahead log as it works,
+ * and two runs minutes apart can differ by a few documents on frequently-written
+ * types. Observed 23 Aug — 7,638 feats in one run and 7,633 in the next, while npc
+ * stayed at 6,393 both times. Nothing is broken when that happens; it means a count
+ * taken against a running Foundry is a snapshot rather than a fact.
+ *
  * Usage:
  *   node tools/read-pack.mjs <pack-dir> [--type npc] [--names] [--json]
  *   node tools/read-pack.mjs <packs-root> --all [--type npc]
