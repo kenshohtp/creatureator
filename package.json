@@ -1,6 +1,6 @@
 {
   "name": "creatureator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Build custom Pathfinder 2e creatures in Foundry VTT by rescaling a bestiary chassis and grafting abilities.",
   "type": "module",
