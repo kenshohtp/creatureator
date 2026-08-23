@@ -588,6 +588,7 @@ tools/
   read-pack.mjs               read a Foundry LevelDB pack off disk, no Foundry needed
   probe-strike-shapes.mjs     how published creatures shape Strike damage (§7.3)
   package-module.mjs          builds module.zip from an allowlist; `npm run package`
+  check-tables-content.mjs    lists non-numeric strings in the generated tables
   setup-github-mcp.ps1/.sh    see 6.5; do not expect them to work
   restore-mcp-servers.ps1     recovery for the BOM incident
 docs/
@@ -732,9 +733,11 @@ ability damage — now true only for non-area damage, and worded per case.
 1. **Cut a release.** `npm run package` builds `module.zip` from a strict allowlist
    and refuses to produce one without `NOTICE.md` or `LICENSE`. Attach it to a GitHub
    release tagged to match `module.json`'s version — `module.json` already points its
-   `download` at `releases/latest/download/module.zip`. One checklist item in
-   `NOTICE.md` is still a human read: that no creature names or descriptions have
-   entered `src/data/`.
+   `download` at `releases/latest/download/module.zip`. Every checklist item in
+   `NOTICE.md` is now ticked, the last one — no creature names in `src/data/` —
+   via `node tools/check-tables-content.mjs`, which prints all 140 non-numeric
+   strings in the generated tables for a human to scan. Re-run it after
+   `npm run fetch:tables`.
 2. **AoN as search**, if it is wanted at all — and it is now optional rather than
    central. Not an importer: search AoN, then resolve the hit to the local Foundry
    item through the five normalisation tiers in ARCHITECTURE §7.7, which cover

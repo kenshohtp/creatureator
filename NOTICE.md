@@ -100,7 +100,11 @@ follows:
       (photographed by Dan, 23 Aug 2026 — the book, not a transcription)
 - [x] ORC Notice reproduced in the distributed files, not only in this repo
       (enforced: `npm run package` aborts if `NOTICE.md` is absent)
-- [ ] Confirm no creature names, descriptions or artwork have entered `src/data/`
+- [x] No creature names, descriptions or artwork in `src/data/` — checked 23 Aug 2026.
+      `node tools/check-tables-content.mjs` prints every non-numeric string in the
+      generated tables; all 140 are band names, column headers, table captions, GM
+      Core page citations, object keys, or item examples like
+      `10 (_+2 striking weapon_)`. **Re-run it after `npm run fetch:tables`.**
 - [x] Release artifact contains no Paizo premium module content
       (enforced: the allowlist in `tools/package-module.mjs` ships seven named
       paths and excludes everything else by default)
@@ -115,8 +119,8 @@ if the file is absent.
 
 The allowlist is deliberate rather than an ignore list. An ignore list fails open: add
 a directory to the repo, forget to exclude it, and it ships. An allowlist fails
-closed — anything new has to be added to `CONTENTS` on purpose, which is the
-behaviour the last two checklist items below want.
+closed — anything new has to be added to `CONTENTS` on purpose, which is what lets
+two of the checklist items above be enforced rather than re-read every release.
 
 ---
 
