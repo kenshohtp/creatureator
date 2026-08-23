@@ -830,21 +830,27 @@ run carries the real figure.
 
 ### 7.4 Licensing
 
-Generated table data is Open Game Content under the ORC licence. `NOTICE.md` carries
-the required ORC Notice and Attribution, both copied from GM Core's own legal page.
+**Copying content is the design, not a compromise.** §2's argument — clone a chassis
+rather than generate one — is an argument for copying. The point of starting from a
+real Bog Dragon is that you get its real Strikes, rule elements, description and art,
+and then change only what you want changed. A grafted ability keeps its text verbatim
+because it should still read as that ability until the user reflavours it: that is
+what "copy and modify" means, and the modify step is optional. An engine that stripped
+descriptions out of caution would produce worse creatures and solve a problem nobody
+has.
 
-**Redistribution and use are different things**, and this section used to conflate
-them. It claimed creature descriptions and art "are never copied into module output".
-That is false, and was false when written: Layer 1 deep-clones a compendium actor, so
-its description and token art travel with it, and grafting an ability copies the
-item's text verbatim. That is the feature, not a leak.
+An earlier version of this section claimed creature descriptions and art "are never
+copied into module output". That was not a licensing position, it was simply a wrong
+description of the software — Layer 1 deep-clones the actor, art path and all.
 
-The true statement is narrower. The *released module* redistributes only the
-mechanical tables. Everything else is read at runtime out of compendia the user has
-installed and licensed — Paizo premium modules very much included, since that is
-where most usable chassis live — and the resulting creature stays in the user's own
-world. Owning the premium modules is a supported and expected setup, not a problem to
-be designed around.
+Licensing sits around that rather than against it. Generated table data is Open Game
+Content under the ORC licence, and `NOTICE.md` carries the required ORC Notice and
+Attribution, both copied from GM Core's own legal page. The *released module*
+redistributes only those mechanical tables, enforced by the allowlist in
+`tools/package-module.mjs`. Everything else is read at runtime from compendia the user
+has installed and licensed, Paizo premium modules included, and the creature that
+comes out lives in their own world. Owning the premium modules is the expected setup:
+they are where most usable chassis live.
 
 ### 7.2 AoN CORS — RESOLVED
 
