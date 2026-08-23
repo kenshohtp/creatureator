@@ -40,6 +40,7 @@ import {
   type AbilityEntry,
 } from "./ability-index.js";
 import { EditSession, type DefenceKind } from "../editor/edit-session.js";
+import { readAbility, type AbilityItem } from "../pf2e/ability.js";
 import { rescaleCreature, type RescaleResult } from "../scaling/rescale-creature.js";
 import type { Band } from "../scaling/bands.js";
 import { readStatBlock, type NPCSource } from "../pf2e/npc.js";
@@ -116,6 +117,13 @@ export class ChassisPicker extends ApplicationV2 {
   #abilitySourceLevel: number | null = null;
   /** Which ability row is open for editing, if any. */
   #expandedAbility: string | null = null;
+
+  /** The attach panel's two sources: the shared packs, or another creature. */
+  #abilityMode: "index" | "creature" = "index";
+  #abilityCreatureSearch = "";
+  #abilityCreature: { uuid: string; name: string; level: number | null } | null = null;
+  #abilityCreatureItems: Record<string, any>[] = [];
+  #abilityCreatureLoading = false;
 
   #all: ChassisEntry[] = [];
   #state: PickerState = {
@@ -328,6 +336,8 @@ export class ChassisPicker extends ApplicationV2 {
     this.#mode = "edit";
     this.#abilitySourceLevel = null;
     this.#expandedAbility = null;
+    this.#abilityCreature = null;
+    this.#abilityCreatureItems = [];
     await this.render();
     void this.#loadAbilities();
   }
@@ -340,13 +350,86 @@ export class ChassisPicker extends ApplicationV2 {
       ? sortAbilities(filterAbilities(all, { search }), search).slice(0, MAX_ABILITY_ROWS)
       : [];
 
+    const creatureSearch = this.#abilityCreatureSearch;
+    const creatureResults = creatureSearch.trim()
+      ? sortChassis(
+          filterChassis(this.#all, { search: creatureSearch, scalableOnly: true })
+        ).slice(0, MAX_ABILITY_ROWS)
+      : [];
+
     return {
+      mode: this.#abilityMode,
       search,
       results,
       total: all.length,
       loading: this.#abilitiesLoading,
       sourceLevel: this.#abilitySourceLevel ?? this.#session?.level ?? 1,
+      creatureSearch,
+      creatureResults,
+      creature: this.#abilityCreature,
+      creatureAbilities: this.#abilityCreatureItems.map(
+        (i) => readAbility(i) as AbilityItem
+      ),
+      creatureLoading: this.#abilityCreatureLoading,
     };
+  }
+
+  /**
+   * Load one creature's abilities.
+   *
+   * The actor source is cached alongside the chassis previews, so browsing a
+   * creature you already previewed costs nothing, and browsing several while
+   * deciding does not re-read the compendium each time.
+   */
+  async #browseCreature(uuid: string | undefined): Promise<void> {
+    if (!uuid) return;
+    const entry = this.#all.find((e) => e.uuid === uuid);
+    this.#abilityCreature = {
+      uuid,
+      name: entry?.name ?? "Creature",
+      level: entry?.level ?? null,
+    };
+    this.#abilityCreatureItems = [];
+    this.#abilityCreatureLoading = true;
+    void this.render();
+
+    try {
+      const source = await this.#sourceFor(uuid);
+      this.#abilityCreatureItems = (source.items ?? []).filter(
+        (i) => i["type"] === "action"
+      );
+    } catch (error) {
+      console.error("creatureator | could not read that creature", error);
+      ui.notifications?.error(`Could not read that creature: ${(error as Error).message}`);
+      this.#abilityCreature = null;
+    } finally {
+      this.#abilityCreatureLoading = false;
+      void this.render();
+    }
+  }
+
+  /**
+   * Copy an ability off the creature being browsed.
+   *
+   * Unlike a compendium item, the source level is known, so the DC rescaling is
+   * exact and there is nothing to ask the user.
+   */
+  #copyFromCreature(index: number, session: EditSession): void {
+    const item = this.#abilityCreatureItems[index];
+    const from = this.#abilityCreature;
+    if (!item || !from) return;
+
+    const report = session.graft(item, {
+      fromLevel: from.level ?? session.level,
+      sourceUuid: `${from.uuid}.Item.${String(item["_id"] ?? "")}`,
+    });
+
+    const moved = report.changes.length
+      ? ` (${report.changes.map((c) => `${c.label} ${c.from}\u2192${c.to}`).join(", ")})`
+      : "";
+    ui.notifications?.info(`Copied ${report.name} from ${from.name}${moved}.`);
+    this.#expandedAbility = `graft:${session.graftedCount - 1}`;
+    void this.render();
   }
 
   /**
@@ -694,6 +777,40 @@ export class ChassisPicker extends ApplicationV2 {
   }
 
   #activateAbilities(root: HTMLElement, session: EditSession): void {
+    root.querySelectorAll<HTMLButtonElement>("button.ability-mode").forEach((button) => {
+      button.addEventListener("click", () => {
+        const mode = button.dataset["mode"];
+        this.#abilityMode = mode === "creature" ? "creature" : "index";
+        void this.render();
+      });
+    });
+
+    root.querySelector<HTMLInputElement>("input.ability-creature-search")
+      ?.addEventListener("input", (ev) => {
+        this.#abilityCreatureSearch = (ev.target as HTMLInputElement).value;
+        this.#rerender();
+      });
+
+    root.querySelectorAll<HTMLButtonElement>("button.ability-browse").forEach((button) => {
+      button.addEventListener("click", () =>
+        void this.#browseCreature(button.dataset["creature"])
+      );
+    });
+
+    root.querySelector<HTMLButtonElement>("button.ability-back-to-creatures")
+      ?.addEventListener("click", () => {
+        this.#abilityCreature = null;
+        this.#abilityCreatureItems = [];
+        void this.render();
+      });
+
+    root.querySelectorAll<HTMLButtonElement>("button.ability-copy").forEach((button) => {
+      button.addEventListener("click", () => {
+        const index = Number(button.dataset["sourceAbility"]);
+        if (Number.isFinite(index)) this.#copyFromCreature(index, session);
+      });
+    });
+
     root.querySelector<HTMLInputElement>("input.ability-search")
       ?.addEventListener("input", (ev) => {
         this.#abilitySearch = (ev.target as HTMLInputElement).value;

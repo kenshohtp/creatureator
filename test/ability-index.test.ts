@@ -19,7 +19,11 @@ import {
   traitsIn,
   type AbilityEntry,
 } from "../src/foundry/ability-index.js";
-import { renderAbilities, renderAbilityPanel } from "../src/foundry/editor-view.js";
+import {
+  EMPTY_ABILITY_PANEL,
+  renderAbilities,
+  renderAbilityPanel,
+} from "../src/foundry/editor-view.js";
 import { EditSession } from "../src/editor/edit-session.js";
 import { rescaleCreature } from "../src/scaling/rescale-creature.js";
 import type { NPCSource } from "../src/pf2e/npc.js";
@@ -162,13 +166,7 @@ describe("the abilities section", () => {
   ) as NPCSource;
 
   const session = () => new EditSession(src, rescaleCreature(src, 5));
-  const panel = {
-    search: "",
-    results: [] as AbilityEntry[],
-    total: 1319,
-    loading: false,
-    sourceLevel: 5,
-  };
+  const panel = { ...EMPTY_ABILITY_PANEL, total: 1319, sourceLevel: 5 };
 
   it("lists what the creature has, with its action cost", () => {
     const html = renderAbilities(session(), panel);
@@ -360,16 +358,127 @@ describe("editing an ability", () => {
 
   it("renders the form with the text and the DC field in it", () => {
     const s = session();
-    const html = renderAbilities(
-      s,
-      { search: "", results: [], total: 0, loading: false, sourceLevel: 5 },
-      breathId
-    );
+    const html = renderAbilities(s, { ...EMPTY_ABILITY_PANEL, sourceLevel: 5 }, breathId);
     expect(html).toContain("ability-form");
     expect(html).toContain("The bog elder breathes out");
     expect(html).toContain("ability-dc-input");
     expect(html).toContain("Write a new ability");
     // Only the open row gets a form.
     expect(html.match(/ability-form"/g)).toHaveLength(1);
+  });
+});
+
+/**
+ * Copying an ability off another creature.
+ *
+ * This is where the abilities actually are: the shared packs hold about 1,300,
+ * the bestiary's creatures roughly 30,000 between them. They cannot be indexed
+ * — that means loading every actor — so they are reached one creature at a time,
+ * and the trade is worth it because a creature has a level, which a compendium
+ * ability item does not.
+ */
+describe("the from-a-creature panel", () => {
+  const creatureEntry = {
+    uuid: "Compendium.pf2e.pathfinder-bestiary.Actor.dragon01",
+    name: "Fortune Dragon",
+    level: 12,
+    pack: "pf2e.pathfinder-bestiary",
+    packLabel: "Bestiary",
+    provenance: "system" as const,
+    official: true,
+  };
+
+  const abilities = [
+    { id: "a1", name: "Breath Weapon", actionType: "action" as const, actions: 2, category: "offensive", traits: ["fire"], description: "", ruleCount: 0 },
+    { id: "a2", name: "Frightful Presence", actionType: "passive" as const, actions: null, category: "offensive", traits: ["aura"], description: "", ruleCount: 2 },
+  ];
+
+  it("offers the two sources as a choice", () => {
+    const html = renderAbilityPanel({ ...EMPTY_ABILITY_PANEL }, 5);
+    expect(html).toContain("From a compendium");
+    expect(html).toContain("From another creature");
+    expect(html).toContain('data-mode="creature"');
+  });
+
+  it("searches creatures before it lists abilities", () => {
+    const html = renderAbilityPanel(
+      { ...EMPTY_ABILITY_PANEL, mode: "creature", creatureSearch: "dragon", creatureResults: [creatureEntry] },
+      5
+    );
+    expect(html).toContain("Fortune Dragon");
+    expect(html).toContain("Creature 12");
+    expect(html).toContain('class="ability-browse"');
+  });
+
+  it("lists a chosen creature's abilities, with a Copy on each", () => {
+    const html = renderAbilityPanel(
+      {
+        ...EMPTY_ABILITY_PANEL,
+        mode: "creature",
+        creature: { uuid: creatureEntry.uuid, name: "Fortune Dragon", level: 12 },
+        creatureAbilities: abilities,
+      },
+      5
+    );
+    expect(html).toContain("Breath Weapon");
+    expect(html).toContain("2 actions");
+    expect(html).toContain('class="ability-copy"');
+    // A rule element means real automation comes along with the copy.
+    expect(html).toContain("automated");
+  });
+
+  /** The point of this route: the source level is known, so nothing is asked. */
+  it("says it will rescale from the source creature's level, not ask for one", () => {
+    const html = renderAbilityPanel(
+      {
+        ...EMPTY_ABILITY_PANEL,
+        mode: "creature",
+        creature: { uuid: creatureEntry.uuid, name: "Fortune Dragon", level: 12 },
+        creatureAbilities: abilities,
+      },
+      5
+    );
+    expect(html).toContain("from level 12 to 5");
+    expect(html).toContain("nothing to guess");
+    expect(html).not.toContain("written for level");
+  });
+
+  it("says so plainly when the levels match", () => {
+    const html = renderAbilityPanel(
+      {
+        ...EMPTY_ABILITY_PANEL,
+        mode: "creature",
+        creature: { uuid: creatureEntry.uuid, name: "Fortune Dragon", level: 5 },
+        creatureAbilities: abilities,
+      },
+      5
+    );
+    expect(html).toContain("comes across unchanged");
+  });
+
+  it("says so when the creature has nothing to copy", () => {
+    const html = renderAbilityPanel(
+      {
+        ...EMPTY_ABILITY_PANEL,
+        mode: "creature",
+        creature: { uuid: creatureEntry.uuid, name: "Plain Ox", level: 1 },
+        creatureAbilities: [],
+      },
+      5
+    );
+    expect(html).toContain("Plain Ox has no abilities to copy");
+  });
+
+  it("shows it is reading while the actor loads", () => {
+    const html = renderAbilityPanel(
+      {
+        ...EMPTY_ABILITY_PANEL,
+        mode: "creature",
+        creature: { uuid: creatureEntry.uuid, name: "Fortune Dragon", level: 12 },
+        creatureLoading: true,
+      },
+      5
+    );
+    expect(html).toContain("Reading Fortune Dragon");
   });
 });

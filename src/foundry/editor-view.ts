@@ -27,7 +27,8 @@ import type {
   EditSession,
 } from "../editor/edit-session.js";
 import type { AbilityEntry } from "./ability-index.js";
-import { actionCostLabel } from "../pf2e/ability.js";
+import type { ChassisEntry } from "./chassis.js";
+import { actionCostLabel, type AbilityItem } from "../pf2e/ability.js";
 import type { Band } from "../scaling/bands.js";
 
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -428,13 +429,40 @@ function abilityListRow(session: EditSession, row: AbilityRow, expanded: string 
 }
 
 export interface AbilityPanel {
+  /** Which source the user is browsing. */
+  mode: "index" | "creature";
+
+  // --- browsing the shared ability packs ---
   search: string;
   results: readonly AbilityEntry[];
   total: number;
   loading: boolean;
   /** The level the ability being attached was written for. */
   sourceLevel: number;
+
+  // --- browsing another creature's abilities ---
+  creatureSearch: string;
+  creatureResults: readonly ChassisEntry[];
+  /** The creature whose abilities are being listed, once one is chosen. */
+  creature: { uuid: string; name: string; level: number | null } | null;
+  creatureAbilities: readonly AbilityItem[];
+  creatureLoading: boolean;
 }
+
+/** A panel with nothing in it, for tests and for the first render. */
+export const EMPTY_ABILITY_PANEL: AbilityPanel = {
+  mode: "index",
+  search: "",
+  results: [],
+  total: 0,
+  loading: false,
+  sourceLevel: 1,
+  creatureSearch: "",
+  creatureResults: [],
+  creature: null,
+  creatureAbilities: [],
+  creatureLoading: false,
+};
 
 const PROVENANCE_LABEL: Record<string, string> = {
   system: "Official",
@@ -463,16 +491,109 @@ function resultRow(entry: AbilityEntry): string {
 }
 
 /**
+ * Browsing another creature's abilities.
+ *
+ * This is where the abilities actually are. The shared packs hold around 1,300;
+ * the bestiary's creatures carry roughly 30,000 between them, five apiece. They
+ * cannot be indexed - that would mean loading every actor - so they are reached
+ * one creature at a time instead.
+ *
+ * The compensation is exactness. A compendium ability item has no level, so the
+ * panel has to ask what its DCs were written for; a creature has a level, so
+ * anything copied off it rescales correctly with nothing to ask.
+ */
+function creatureAbilityRow(ability: AbilityItem, index: number): string {
+  return `
+    <li class="ability-result" data-source-ability="${index}">
+      <span class="ability-cost">${escapeHtml(actionCostLabel(ability))}</span>
+      <span class="ability-name">${escapeHtml(ability.name)}</span>
+      <span class="ability-traits">${escapeHtml(ability.traits.slice(0, 4).join(", "))}</span>
+      <span class="ability-origin">${ability.ruleCount ? "automated" : ""}</span>
+      <button type="button" class="ability-copy" data-source-ability="${index}">Copy</button>
+    </li>`;
+}
+
+function creatureResultRow(entry: ChassisEntry): string {
+  return `
+    <li class="ability-result creature" data-creature="${escapeHtml(entry.uuid)}">
+      <span class="ability-cost">Creature ${entry.level ?? "?"}</span>
+      <span class="ability-name">${escapeHtml(entry.name)}</span>
+      <span class="ability-traits">${escapeHtml(entry.packLabel)}</span>
+      <span class="provenance ${entry.provenance}">${
+        PROVENANCE_LABEL[entry.provenance] ?? entry.provenance
+      }</span>
+      <button type="button" class="ability-browse" data-creature="${escapeHtml(entry.uuid)}">Browse</button>
+    </li>`;
+}
+
+function creatureMode(panel: AbilityPanel, creatureLevel: number): string {
+  if (panel.creature) {
+    const from = panel.creature.level;
+    const note =
+      from === null
+        ? `<p class="muted blurb">This creature has no level, so DCs are copied exactly as written.</p>`
+        : from === creatureLevel
+          ? `<p class="muted blurb">Same level, so anything copied comes across unchanged.</p>`
+          : `<p class="muted blurb">
+               Copying rescales save DCs from level ${from} to ${creatureLevel} automatically -
+               the source creature's level is known, so there is nothing to guess.
+             </p>`;
+
+    const list = panel.creatureLoading
+      ? `<li class="ability-note muted">Reading ${escapeHtml(panel.creature.name)}...</li>`
+      : panel.creatureAbilities.length
+        ? panel.creatureAbilities.map(creatureAbilityRow).join("")
+        : `<li class="ability-note muted">${escapeHtml(panel.creature.name)} has no abilities to copy.</li>`;
+
+    return `
+      <div class="ability-add-controls">
+        <button type="button" class="ability-back-to-creatures">
+          <i class="fa-solid fa-arrow-left" inert></i> Different creature
+        </button>
+        <strong class="ability-source-name">${escapeHtml(panel.creature.name)}</strong>
+        <span class="muted">Creature ${panel.creature.level ?? "?"}</span>
+      </div>
+      ${note}
+      <ol class="ability-results">${list}</ol>`;
+  }
+
+  const status = panel.creatureSearch.trim() === ""
+    ? `<li class="ability-note muted">Search for a creature, then copy from what it has.</li>`
+    : panel.creatureResults.length
+      ? ""
+      : `<li class="ability-note muted">No creature matches "${escapeHtml(panel.creatureSearch)}".</li>`;
+
+  return `
+    <div class="ability-add-controls">
+      <input type="search" class="ability-creature-search" placeholder="Search creatures"
+             value="${escapeHtml(panel.creatureSearch)}" aria-label="Search creatures">
+    </div>
+    <ol class="ability-results">${status}${panel.creatureResults.map(creatureResultRow).join("")}</ol>`;
+}
+
+/**
  * The attach panel.
  *
- * "Written for level" is asked rather than assumed. A compendium ability item
- * carries no level of its own, so there is no way to know what a DC inside it
- * was balanced against. Defaulting it to the creature's own level means the
- * default action is to change nothing, and converting is one deliberate edit.
+ * Two sources, because they answer different needs: the shared packs are what
+ * you reach for when you know the ability's name, and another creature is what
+ * you reach for when you know the *creature* that does the thing you want.
  */
 export function renderAbilityPanel(panel: AbilityPanel, creatureLevel: number): string {
-  const rows = panel.results.map(resultRow).join("");
+  const tab = (mode: "index" | "creature", label: string) =>
+    `<button type="button" class="ability-mode${panel.mode === mode ? " active" : ""}"
+             data-mode="${mode}" aria-pressed="${panel.mode === mode}">${label}</button>`;
 
+  const tabs = `
+    <div class="ability-modes">
+      ${tab("index", "From a compendium")}
+      ${tab("creature", "From another creature")}
+    </div>`;
+
+  if (panel.mode === "creature") {
+    return `<div class="ability-add">${tabs}${creatureMode(panel, creatureLevel)}</div>`;
+  }
+
+  const rows = panel.results.map(resultRow).join("");
   const status = panel.loading
     ? `<li class="ability-note muted">Reading your compendia...</li>`
     : panel.search.trim() === ""
@@ -483,6 +604,7 @@ export function renderAbilityPanel(panel: AbilityPanel, creatureLevel: number): 
 
   return `
     <div class="ability-add">
+      ${tabs}
       <div class="ability-add-controls">
         <input type="search" class="ability-search" placeholder="Search abilities to add"
                value="${escapeHtml(panel.search)}" aria-label="Search abilities">

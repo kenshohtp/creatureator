@@ -821,3 +821,39 @@
   letter-spacing: 0;
   font-weight: 400;
 }
+
+/* Two sources for an ability: a compendium, or another creature. */
+.creatureator .ability-modes {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+}
+
+.creatureator button.ability-mode {
+  width: auto;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  padding: 0 0.7em;
+  opacity: 0.65;
+  border: 1px solid var(--color-border-light-tertiary, #7a7971);
+  background: transparent;
+}
+
+.creatureator button.ability-mode.active {
+  opacity: 1;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.creatureator button.ability-back-to-creatures {
+  width: auto;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  padding: 0 0.6em;
+}
+
+.creatureator .ability-source-name { font-size: 0.9rem; }
+
+.creatureator .ability-result.creature .ability-cost {
+  font-variant-numeric: tabular-nums;
+}
