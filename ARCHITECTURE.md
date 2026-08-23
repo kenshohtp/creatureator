@@ -750,10 +750,14 @@ blocks and silently misses everything inside a Snappy block, which for a gap
 measurement manufactures false absences. The reader was validated by known answer —
 Husk Zombie must appear in `book-of-the-dead-bestiary`, and does, where `strings`
 could not find it — and its totals independently reproduce three numbers this
-project had already obtained through Foundry's own API: 6,322 unique creature names
-against 6,393 index rows, 33,267 embedded abilities at 5.26 per creature against the
-"roughly 30,000, five per creature" estimate, and 1,403 standalone `action` items
-against 1,414.
+project had already obtained through Foundry's own API: 6,393 npc documents against
+the 6,393 rows Foundry's index reports, 33,266 embedded abilities at 5.20 per creature
+against the "roughly 30,000, five per creature" estimate, and 1,414 standalone `action`
+items — which is exactly the "1,414 abilities indexed" the module's own panel shows.
+
+(The first run read only `.ldb` files and reported 1,403 standalone actions — slightly
+low, because some records were sitting in a write-ahead log the reader ignored. See the
+note at the end of §7.9.)
 
 **Result.** Of 4,748 AoN creatures, 4,669 resolve against the install — **98.34%**.
 
@@ -835,6 +839,58 @@ The corpus size is deliberately no longer written into the test's docstring or i
 `describe` label. It changes every time `npm run fetch:corpus` runs, and a count baked
 into a label is a count that quietly stops being true — the scoreboard printed by the
 run carries the real figure.
+
+### 7.9 AoN is not a richer ability source either (23 Aug 2026)
+
+§7.7 measured creatures. This extends it to abilities, which is the only other
+category this module touches — it never deals in feats, equipment or spell content.
+
+`tools/fetch-category-names.mjs` asked AoN for a breakdown first rather than guessing
+category names: 96 categories, 45,405 documents. The two that bear on this module are
+`action` (4,196) and `creature-ability` (85).
+
+| | |
+|---|---|
+| Foundry, unique ability names | **19,886** — 12,693 `action` plus 7,734 `feat` |
+| AoN, `action` + `creature-ability` | **4,281** documents |
+
+Foundry holds roughly five times as many, and AoN's list is the dirtier of the two.
+Its `action` category is not an ability index: 679 of those documents are item
+*activation strings* — `command, Interact`, `1 minute (command, envision, Interact)`,
+`Treat Poison or 8 hours (Treat Disease)` — carrying `type: "Action"` with fields
+identical to real abilities, so nothing in the index distinguishes them. It also holds
+legacy duplicates, `Bear Hug` appearing under both Core Rulebook and Player Core, the
+same pre-remaster doubling §7.7 found in creatures.
+
+A name diff after dropping the obvious noise matched 41.7%, but that figure is not
+worth refining: the residue is mostly further activation strings and player content
+that Foundry files as `feat` rather than `action`. The measurement was stopped there
+deliberately. More precision could not change the conclusion, and the discipline that
+says *measure before deciding* also says stop when the answer is in.
+
+**Two reader bugs found by doing this, both fixed.** The measurement first reported
+4,153 abilities where the morning's run of the same tool had found 33,266. Neither
+number was a lie about the data; the reader had stopped being able to see it.
+
+A LevelDB pack does not always keep its documents in `.ldb` SSTables — recent writes
+live in a `.log` write-ahead file, and after Foundry opens a pack the SSTable can be
+gone entirely. `read-pack.mjs` read only `.ldb`, so it returned near-empty packs with
+no error. It now parses the log too, and reproduces both live Foundry figures exactly:
+6,393 npc documents and 1,414 indexed abilities.
+
+The same wrong assumption had also been copy-pasted into three separate "is this a
+pack?" tests, each checking for a `.ldb` file, so log-only packs were skipped before
+the reader was even called. That is now one exported `isPackDir`, so it can only be
+wrong in one place.
+
+Both are the failure this tool was written to avoid: returning *nothing* when it means
+*I cannot read this*. It was caught only because the new number disagreed with a number
+already written down — which is the argument for writing measurements down.
+
+**Conclusion.** AoN is not a richer source of abilities than a normal Foundry install.
+Combined with §7.7, its runtime value to this module is close to nil. Its offline value
+— the `*_scale_number` band labels that make the validation corpus possible, and the GM
+Core tables — remains essential and is already built.
 
 ### 7.4 Licensing
 

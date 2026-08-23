@@ -50,9 +50,13 @@ by remembering.
 picker, 1,414 abilities indexed, no console errors. Procedure and the symlink
 hazard are in HANDOFF §6.10 — read it before repeating this.
 
-**Still unconfirmed:** whether Foundry's module-list entry renders the `license`
-field. Nobody looked at that screen. **Verify:** open Add-on Modules with the
-release installed and check for a licence link on the Creatureator entry.
+**Fully closed 23 Aug.** Foundry v14's module tile renders four badges — project
+`url`, author, languages, version — and **no licence badge**. The ⓘ icon is the
+`url` field, not `license`. The `license` field stays in `module.json` because it is
+correct metadata and harmless (of 147 installed modules, 128 omit it entirely and two
+put a licence *name* in it, so Foundry validates nothing), but nobody should expect it
+to appear in the UI. The notice reaches users two other ways regardless: inside
+`module.zip`, and through the ⓘ link to the repository.
 
 ### 2. Sourcemaps
 **Closed 23 Aug — they ship.** They are 424 kB of the 665 kB archive, which looked
@@ -63,22 +67,25 @@ alternative — dropping the maps while the emitted JS still carries
 `//# sourceMappingURL` — would give every user 404s instead.
 
 ### 3. Re-read README against the redistribute-vs-use distinction
-**Open.** `NOTICE.md` and `ARCHITECTURE.md` §7.4 were corrected on 23 Aug to
-separate what the module *redistributes* from what it *uses at runtime from the
-user's own licensed compendia*. README has not been checked against that, and its
-Roadmap and Open-items sections are stale in several places.
-
-**Verify:** `grep -in "premium\|redistribut\|no Paizo" README.md` returns nothing
-that contradicts NOTICE.md.
+**Done 23 Aug, at `8f5e2d8`.** README's Licence section carried the same false claim
+ARCHITECTURE §7.4 did — that descriptions and artwork "are never copied into module
+output" — plus a stale "attribution notice is not yet verified" release blocker. Both
+corrected, and the redistribute-vs-use split stated explicitly. Also refreshed: the
+baked-in 4,714 corpus figure, the missing `npm run package`, and the claim that all
+probes are pasted into the Foundry console, which stopped being true when
+`read-pack.mjs` landed.
 
 ### 4. Archives of Nethys as *search*
-**Open, and optional.** Not an importer — see Closed below. Search AoN's
-Elasticsearch, then resolve each hit to the local Foundry item through the five
-normalisation tiers in ARCHITECTURE §7.7, which cover 98.3% of AoN's creatures.
-Text import becomes a fallback firing on 1.7% and can be deferred indefinitely.
+**Closed 23 Aug — measured, and not worth building.** §7.7 showed 98.34% of AoN's
+creatures already exist locally; §7.9 extends that to abilities and finds Foundry
+holds ~19,886 unique ability names against AoN's 4,281 documents, of which 679 are
+item activation strings rather than abilities at all.
 
-**Verify:** a resolver module with tests against `test/fixtures/creature-corpus.json`
-reproducing the 98.3% figure, and a UI path in the ability panel.
+AoN is a smaller and dirtier source than the install it would sit beside. Its
+indispensable role — the `*_scale_number` band labels behind the validation corpus,
+and the GM Core tables — is offline and already built. If search is ever the pain
+point, improving the module's own search is cheaper, works offline, and can see the
+homebrew and module content AoN cannot.
 
 ### 5. Language model assistance
 **Open, deliberately last.** The rules engine ships useful with no API key. When
@@ -113,11 +120,6 @@ token for anyone who does not. Fine for personal use; it matters only if a built
 creature is shared with someone lacking the source.
 
 **Verify:** decide whether to warn on create, or do nothing.
-
-### Manifest `license` and `readme` fields unverified
-**Open.** Added to `module.json` on 23 Aug because Foundry documents them.
-Unknown fields are ignored harmlessly, so the downside is nil — but nobody has
-watched Foundry render them. Folded into item 1 above.
 
 ---
 

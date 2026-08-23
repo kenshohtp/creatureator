@@ -161,6 +161,74 @@ function* sstRecords(path) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Write-ahead log
+//
+// A LevelDB pack does not always keep its data in .ldb SSTables. Recent writes
+// live in a .log write-ahead file until they are compacted, and after Foundry
+// opens a pack the SSTable can be gone entirely with everything sitting in the
+// log. Reading only .ldb then returns a pack that looks empty.
+//
+// That happened on 23 Aug: an ability diff reported 4,153 abilities where an
+// earlier run of the same tool had found 33,267, because Foundry had been
+// opened in between and every pack had been rewritten into log form. Zero
+// documents and no error is the exact false-absence failure this reader exists
+// to avoid, so the log is parsed too.
+//
+// Format: 32 KiB blocks of records, each 4-byte checksum, 2-byte length, 1-byte
+// type, then payload. A record is FULL, or FIRST/MIDDLE/LAST fragments to be
+// concatenated. Each assembled payload is a WriteBatch: an 8-byte sequence, a
+// 4-byte count, then that many entries of <type><varint-len key><varint-len
+// value>, where type 0 is a deletion and carries no value.
+// ---------------------------------------------------------------------------
+
+const LOG_BLOCK = 32768;
+const REC_FULL = 1, REC_FIRST = 2, REC_MIDDLE = 3, REC_LAST = 4;
+const BATCH_HEADER = 12;
+
+function* logPayloads(data) {
+  let pos = 0;
+  let partial = [];
+  while (pos + 7 <= data.length) {
+    const inBlock = pos % LOG_BLOCK;
+    if (LOG_BLOCK - inBlock < 7) { pos += LOG_BLOCK - inBlock; continue; }
+    const length = data.readUInt16LE(pos + 4);
+    const type = data[pos + 6];
+    const body = data.subarray(pos + 7, pos + 7 + length);
+    pos += 7 + length;
+    if (type === 0) continue;                       // zero record: padding
+    if (type === REC_FULL) { yield body; continue; }
+    if (type === REC_FIRST) { partial = [body]; continue; }
+    if (type === REC_MIDDLE) { partial.push(body); continue; }
+    if (type === REC_LAST) { partial.push(body); yield Buffer.concat(partial); partial = []; }
+  }
+}
+
+/** Key/value pairs from one WriteBatch payload. Deletions are yielded as null. */
+function* batchEntries(batch) {
+  if (batch.length < BATCH_HEADER) return;
+  const count = batch.readUInt32LE(8);
+  let pos = BATCH_HEADER;
+  for (let i = 0; i < count && pos < batch.length; i++) {
+    const kind = batch[pos++];
+    let klen; [klen, pos] = varint(batch, pos);
+    const key = batch.subarray(pos, pos + klen); pos += klen;
+    if (kind === 0) { yield [key, null]; continue; }   // deletion
+    let vlen; [vlen, pos] = varint(batch, pos);
+    const value = batch.subarray(pos, pos + vlen); pos += vlen;
+    yield [key, value];
+  }
+}
+
+/**
+ * Records from a .log file. Keys here are *user* keys with no 8-byte trailer —
+ * that suffix belongs to SSTable internal keys only.
+ */
+function* logRecords(path) {
+  const data = readFileSync(path);
+  for (const payload of logPayloads(data)) yield* batchEntries(payload);
+}
+
 /** LevelDB internal keys carry an 8-byte trailer; the user key is what precedes it. */
 const INTERNAL_KEY_TRAILER = 8;
 
@@ -184,8 +252,10 @@ const INTERNAL_KEY_TRAILER = 8;
  */
 export function readPack(packDir) {
   const docs = new Map();
-  for (const fn of readdirSync(packDir).sort()) {
-    if (!fn.endsWith(".ldb")) continue;
+  const files = readdirSync(packDir).sort();
+
+  // SSTables first, then the write-ahead log: the log holds the newer writes.
+  for (const fn of files.filter((f) => f.endsWith(".ldb"))) {
     for (const [key, value] of sstRecords(join(packDir, fn))) {
       if (!value.length || key.length <= INTERNAL_KEY_TRAILER) continue;
       const userKey = key.subarray(0, key.length - INTERNAL_KEY_TRAILER).toString("utf8");
@@ -193,6 +263,17 @@ export function readPack(packDir) {
       catch { /* not a document record */ }
     }
   }
+
+  for (const fn of files.filter((f) => f.endsWith(".log"))) {
+    for (const [key, value] of logRecords(join(packDir, fn))) {
+      const userKey = key.toString("utf8");
+      if (value === null) { docs.delete(userKey); continue; }
+      if (!value.length) continue;
+      try { docs.set(userKey, JSON.parse(value.toString("utf8"))); }
+      catch { /* not a document record */ }
+    }
+  }
+
   return docs;
 }
 
@@ -205,9 +286,21 @@ export function publication(doc) {
 
 // ---------------------------------------------------------------------------
 
-function isPackDir(d) {
-  try { return statSync(d).isDirectory() && readdirSync(d).some((f) => f.endsWith(".ldb")); }
-  catch { return false; }
+/**
+ * Is this directory a LevelDB pack?
+ *
+ * Exported because every caller used to hand-roll it as "contains a .ldb", and
+ * that is wrong: a pack whose data currently sits in the write-ahead log has no
+ * SSTable at all. On 23 Aug the same wrong test appeared in three places and
+ * silently excluded every pack in the install, which looked like an empty
+ * result rather than a skipped one. One definition, exported, so it can only be
+ * wrong once.
+ */
+export function isPackDir(d) {
+  try {
+    if (!statSync(d).isDirectory()) return false;
+    return readdirSync(d).some((f) => f.endsWith(".ldb") || f.endsWith(".log"));
+  } catch { return false; }
 }
 
 function main(argv) {

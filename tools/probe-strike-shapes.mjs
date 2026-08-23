@@ -15,17 +15,12 @@
  *   node tools/probe-strike-shapes.mjs <packs-root> --faces 4 --levels 8-12
  */
 
-import { readPack } from "./read-pack.mjs";
-import { readdirSync, statSync } from "node:fs";
+import { readPack, isPackDir } from "./read-pack.mjs";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const FORMULA = /^\s*(\d*)d(\d+)\s*(?:([+-])\s*(\d+))?\s*$/i;
-
-const isPack = (d) => {
-  try { return statSync(d).isDirectory() && readdirSync(d).some((f) => f.endsWith(".ldb")); }
-  catch { return false; }
-};
 
 /**
  * Every NPC Strike in every pack, with its creature's level.
@@ -37,7 +32,7 @@ const isPack = (d) => {
  */
 function harvest(root) {
   const strikes = [];
-  for (const dir of readdirSync(root).map((d) => join(root, d)).filter(isPack)) {
+  for (const dir of readdirSync(root).map((d) => join(root, d)).filter(isPackDir)) {
     const docs = readPack(dir);
     const level = new Map();
     for (const [key, doc] of docs) {
