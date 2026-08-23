@@ -803,6 +803,32 @@
 .creatureator input.ability-dc-input { width: 3.5rem; text-align: right; }
 .creatureator select.ability-dc-band { width: auto; font-size: 0.78rem; }
 
+.creatureator .ability-damages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+}
+
+.creatureator .ability-damage {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.creatureator .ability-damage-label {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.creatureator code.ability-damage-expr {
+  font-size: 0.78rem;
+  padding: 0 0.3em;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.creatureator select.ability-damage-area { width: auto; font-size: 0.78rem; }
+
 .creatureator .ability-actions-row {
   display: flex;
   justify-content: flex-start;

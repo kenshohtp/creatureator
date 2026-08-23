@@ -46,12 +46,22 @@ import {
 } from "../pf2e/ability.js";
 import {
   abilityDCAt,
+  areaDamageAt,
+  AREA_DAMAGE_COLUMNS,
   classifyAbilityDC,
   rescaleAbilityText,
   SCALED_CHECK_TYPES,
   type AbilityNote,
+  type AreaDamageColumn,
 } from "../scaling/rescale-ability.js";
-import { findInlines, withDC, type InlineCheck } from "../pf2e/inline.js";
+import {
+  findInlines,
+  isAreaDamage,
+  withDC,
+  withDamageTerm,
+  type InlineCheck,
+  type InlineDamage,
+} from "../pf2e/inline.js";
 import {
   averageDamage,
   isFlat,
@@ -137,6 +147,53 @@ export interface AbilityDCField {
   band: Band | null;
   offset: number | null;
   options: { band: Band; value: number }[];
+}
+
+/** One Table 2-12 figure, expressed for the ability that would receive it. */
+export interface AbilityDamageOption {
+  /** Which column of Table 2-12 it came from. */
+  key: AreaDamageColumn;
+  /**
+   * What picking it would actually write.
+   *
+   * Not the table's own expression. The ability keeps its die size, so
+   * offering Table 2-12's "5d6" to a d8 ability advertises a result the module
+   * will not deliver - which is precisely the bug the live render caught on the
+   * Strike damage dropdown (6.1). The option is built through the same
+   * re-expression the write uses, so what it promises is what it does.
+   */
+  expr: string;
+  /** The average Table 2-12 publishes for that column, which `expr` targets. */
+  average: number;
+}
+
+/**
+ * One damage term written inside an ability's text, presented as a field.
+ *
+ * Ability damage is never rescaled on anyone's behalf - no table earns that.
+ * But a third of it marks itself `options:area-damage`, and for those Table
+ * 2-12 is demonstrably the relevant table (30.5% exact against the Strike
+ * table's 10.5%). So the field carries the two figures that table publishes for
+ * the target level as explicit choices, and everything else carries a `note`
+ * saying why it has none. Silence would be the one unacceptable answer.
+ */
+export interface AbilityDamageField {
+  /** Position among the inline elements, for writing the edit back. */
+  index: number;
+  /** Position among that element's terms: "1d6[mental],1d6[fire]" has two. */
+  termIndex: number;
+  /** The expression exactly as written: "7d8", "(4d6+8)", "20". */
+  expr: string;
+  /** "poison", "fire"... null when the term carries no type. */
+  damageType: string | null;
+  /** True when the element is marked `options:area-damage`. */
+  isArea: boolean;
+  /** Mean of `expr`, or null when it is not a formula this module can read. */
+  average: number | null;
+  /** Table 2-12's figures. Empty for anything it does not govern. */
+  options: AbilityDamageOption[];
+  /** Why there are no options, when there are none. */
+  note: string | null;
 }
 
 export interface EditSection {
@@ -710,6 +767,128 @@ export class EditSession {
       text.slice(target.end);
 
     return this.setAbilityField(rowId, "description", next);
+  }
+
+  /**
+   * The damage written inside an ability's text, as fields.
+   *
+   * Every term is listed, including the ones nothing is offered for, because
+   * "this number was considered and left alone" and "this number was not
+   * noticed" look identical to a user unless the first is said out loud.
+   */
+  abilityDamage(rowId: string): AbilityDamageField[] {
+    const text = this.abilityText(rowId);
+    const out: AbilityDamageField[] = [];
+
+    findInlines(text).forEach((inline, index) => {
+      if (inline.kind !== "damage") return;
+      const damage = inline as InlineDamage;
+      const isArea = isAreaDamage(damage);
+
+      damage.terms.forEach((term, termIndex) => {
+        const parsed = parseDamage(term.expr);
+        const options = isArea && parsed && !isFlat(parsed)
+          ? this.#areaDamageOptions(term.expr)
+          : [];
+
+        let note: string | null = null;
+        if (!parsed) {
+          /**
+           * Two different things look identical to `parseDamage`, and calling
+           * both "unrecognised" is a lie about one of them.
+           *
+           * `@Damage[(@actor.level)d6[untyped]|options:area-damage]` is Dragon
+           * Breath, and it is not broken - it resolves against the creature's
+           * own data at roll time, so it already tracks level. Replacing it
+           * with a fixed figure from Table 2-12 would make it *worse*. Saying
+           * "unrecognised" there makes the module look like it choked on
+           * something it understands perfectly well.
+           */
+          note = /@/.test(term.expr)
+            ? "Resolves from the creature's own data at roll time, so it " +
+              "already scales - a fixed figure would replace that, not improve it."
+            : "Not a formula this module can read - left exactly as typed.";
+        } else if (isFlat(parsed)) {
+          note = "Flat amount - a fixed number, not a scaled one.";
+        } else if (!isArea) {
+          note =
+            "Not marked as area damage. No published table governs ability " +
+            "damage closely enough to offer a figure for it.";
+        } else if (!options.length) {
+          note = `Level ${this.level} is outside Table 2-12.`;
+        }
+
+        out.push({
+          index,
+          termIndex,
+          expr: term.expr,
+          damageType: term.damageType,
+          isArea,
+          average: parsed ? averageDamage(parsed) : null,
+          options,
+          note,
+        });
+      });
+    });
+
+    return out;
+  }
+
+  /**
+   * Both Table 2-12 columns, re-expressed for this ability's dice.
+   *
+   * The table's dice count is adopted and its average is the target; the die
+   * size is the ability's own. A d8 ability offered the level's "5d6 (18)"
+   * comes back as a d8 expression averaging 18, not as 5d6.
+   */
+  #areaDamageOptions(formula: string): AbilityDamageOption[] {
+    return AREA_DAMAGE_COLUMNS.flatMap((key) => {
+      const cell = areaDamageAt(this.level, key);
+      if (!cell) return [];
+      return [
+        {
+          key,
+          expr: rescaleDamageFormula(formula, cell.average, cell.expr),
+          average: cell.average,
+        },
+      ];
+    });
+  }
+
+  /**
+   * Write one damage term back into the ability's text.
+   *
+   * Only that term moves. The element's parameters (`|options:area-damage`),
+   * its label (`{Spore Explosion}`), its sibling terms and every byte around it
+   * are carried through unchanged - an ability that comes out of this differing
+   * in anything but the one expression is a bug.
+   *
+   * Anything that is not a formula this module can read is refused rather than
+   * written, for the same reason `set` refuses a half-typed number: a rejected
+   * edit leaves the last good value in place, a written one does not.
+   */
+  setAbilityDamage(
+    rowId: string,
+    inlineIndex: number,
+    termIndex: number,
+    expr: string
+  ): boolean {
+    const next = expr.trim();
+    if (!next || !parseDamage(next)) return false;
+
+    const text = this.abilityText(rowId);
+    const target = findInlines(text)[inlineIndex];
+    if (!target || target.kind !== "damage") return false;
+
+    const damage = target as InlineDamage;
+    if (!damage.terms[termIndex]) return false;
+
+    const rewritten =
+      text.slice(0, target.start) +
+      withDamageTerm(damage, termIndex, next) +
+      text.slice(target.end);
+
+    return this.setAbilityField(rowId, "description", rewritten);
   }
 
   /** Create a blank ability to write from scratch. */

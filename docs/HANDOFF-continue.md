@@ -69,7 +69,9 @@ is needed. A *server* restart is only needed when adding a new module.
 
 ## 3. Current state
 
-**314 tests passing**, no `describe.todo` left. 14 test files.
+**325 tests passing**, no `describe.todo` left. 14 test files.
+(Sandbox count is 307; the 18 corpus tests in `scale-decode.test.ts` need
+`npm run fetch:corpus`, which is gitignored. Dan's `npm run check` is the gate.)
 
 ### What works, and how it was verified
 
@@ -87,6 +89,7 @@ is needed. A *server* restart is only needed when adding a new module.
 | **Ability grafting** | Verified live: Dragon Breath copied onto a husk zombie, DC repaired, ability usable from the sheet. Two sources — 1,414 shared ability items, and any creature's own abilities. |
 | **Ability editing** | Name, action cost, traits, description and the save DCs inside the text, all editable in place. Blank abilities can be written from scratch. |
 | **Inline element parsing** | `@Check` / `@Damage` / `@Template`, including nested brackets, trailing `\|options:` parameters, and `against:` DC references. 31 tests, every fixture string real. |
+| **Area damage figures** | Table 2-12 offered as two labelled choices on any `options:area-damage` term; die size preserved; flat and unreadable amounts refused with a reason. 10 tests. |
 | **The reference creature** | **Built end to end in a live world.** Occam's Risen Kinetic Husk: AC 22, HP 75, weaknesses dropped, renamed, with a hand-written `Bound to Occam`. |
 
 ### What does NOT exist
@@ -94,8 +97,10 @@ is needed. A *server* restart is only needed when adding a new module.
 - **AoN as an ability source.** Two of the three authoring routes are built —
   copy from a compendium or another creature, and write one by hand. Fetching an
   ability's text from Archives of Nethys is not.
-- **Ability damage scaling.** Measured against both candidate tables and neither
-  fits (13.8% / 9.3%). Surfaced and left alone deliberately.
+- **Automatic ability damage scaling.** Still deliberately absent, and should
+  stay absent — no table earns it. What now exists is the offer: damage marked
+  `options:area-damage` carries Table 2-12's two figures for the target level as
+  explicit choices (§9a, built). Everything else is surfaced with its reason.
 - **LLM anything.** Still deliberately deferred; see 7.
 
 ## 4. Architecture — the parts that matter
@@ -425,10 +430,10 @@ their reasoning. Read §3 (layers), §7.5 (band drift), §7.6 (bestiary findings
 
 ---
 
-## 9a. IN FLIGHT — the next build, fully specified
+## 9a. BUILT — area damage figures (23 Aug 2026)
 
-**Offer Table 2-12 figures for area damage.** Designed and measured, not built.
-Everything needed is in the repo; no further probing required.
+**Offer Table 2-12 figures for area damage.** Built as specified below, with
+three deviations noted at the end. See ARCHITECTURE.md §7.6 for the record.
 
 ### Why
 
@@ -486,13 +491,48 @@ In `src/foundry/picker.ts`, wire it in `#activateAbilityForm` alongside the
 - A flat area amount (`@Damage[20[force]|options:area-damage]`) is still left
   alone.
 
+### Deviations from the spec above, and why
+
+1. **`isArea` splits the `options:` list** rather than matching the parameter
+   whole. `options:` is comma-separated in PF2e, so `options:area-damage,foo`
+   is area damage and a whole-string compare would miss it. Lives in
+   `src/pf2e/inline.ts` as `isAreaDamage()`, next to `damageParameters()`.
+2. **Each field carries a `note`.** The spec has non-area damage getting no
+   options "surfaced and explained"; the note is where the explanation lives.
+   Four distinct reasons: not area, flat amount, unreadable formula, level
+   outside the table.
+3. **`options[].expr` is what will be written, not the table's expression.**
+   The spec's example label reads "Unlimited use 5d6 (18)"; the rendered label
+   reads "Unlimited use — 4d8+3 (18)" for a d8 ability, because that is what
+   picking it produces. This is 6.1's dropdown bug, headed off.
+
+### Open question raised by live verification (23 Aug)
+
+**`system.frequency` exists, and §9a assumed it did not.** The spec says which
+Table 2-12 column applies "depends on the ability's **Frequency**, which the
+module does not know, so the user chooses". Confirmed false on a live sheet:
+Dragon Breath on a level 5 NPC carries
+`system.frequency = {value: 0, max: 1, per: "PT1H"}`, and the three abilities
+beside it carry `null`. So the module *can* read it.
+
+That does not change the control - the user should still be able to pick - but
+it may change the **default**. Before defaulting anything,
+`tools/probe-area-frequency.js` measures whether frequency actually predicts the
+column: it cross-tabulates every area-damage term in the bestiary by whether its
+item has a frequency, against how near the term sits to each of Table 2-12's two
+columns. If the gap is large, default and stay overridable; if not, keep asking.
+Printed to the console, no download (6.7).
+
+Also corrected on the way past: the module docstring in `rescale-ability.ts`
+still carried the pre-fix "13.8% exact" figure that ARCHITECTURE §7.6 had
+already superseded, and the note on a `@Damage` element said no table governs
+ability damage — now true only for non-area damage, and worded per case.
+
 ---
 
 ## 10. Suggested first move
 
-Build §9a. It is specified to the function signature and needs no new data.
-
-After that, in rough order of value:
+§9a is done. In rough order of value:
 
 1. **Archives of Nethys as a third ability source** — fetch text, build an item.
    Widest coverage, most parsing risk. AoN's Elasticsearch allows CORS from a

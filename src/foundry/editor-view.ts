@@ -19,6 +19,7 @@
 
 import { escapeHtml } from "./statblock.js";
 import type {
+  AbilityDamageField,
   AbilityDCField,
   AbilityRow,
   DefenceRow,
@@ -339,6 +340,57 @@ function abilityDCRow(rowId: string, field: AbilityDCField): string {
     </div>`;
 }
 
+/** "unlimited use" -> "Unlimited use". */
+const sentenceCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * One damage term inside an ability, with Table 2-12's figures when they apply.
+ *
+ * The two options are labelled by column rather than by band, because that is
+ * what Table 2-12 has: not a quality scale but a frequency one. Which column
+ * governs an ability depends on how often it can be used, which the module
+ * cannot read off the item, so the choice is put to the user in those words
+ * rather than guessed at.
+ *
+ * A term with no options still renders - with the reason in place of the
+ * control. A number that was deliberately left alone and a number that went
+ * unnoticed must not look the same.
+ */
+function abilityDamageRow(rowId: string, field: AbilityDamageField): string {
+  const label = field.damageType
+    ? `${sentenceCase(field.damageType)} damage`
+    : "Damage";
+
+  const control = field.options.length
+    ? `<select class="ability-damage-area" data-ability="${escapeHtml(rowId)}"
+              data-inline="${field.index}" data-term="${field.termIndex}"
+              aria-label="Table 2-12 figure for ${escapeHtml(label)}">
+         ${
+           field.options.some((o) => o.expr === field.expr)
+             ? ""
+             : `<option value="" disabled selected>Table 2-12…</option>`
+         }
+         ${field.options
+           .map(
+             (o) =>
+               `<option value="${escapeHtml(o.expr)}"${
+                 o.expr === field.expr ? " selected" : ""
+               }>${sentenceCase(o.key)} — ${escapeHtml(o.expr)} (${o.average})</option>`
+           )
+           .join("")}
+       </select>`
+    : `<span class="band none" title="${escapeHtml(field.note ?? "")}">—</span>`;
+
+  return `
+    <div class="ability-damage${field.isArea ? " area" : ""}"
+         data-ability="${escapeHtml(rowId)}" data-inline="${field.index}"
+         data-term="${field.termIndex}">
+      <span class="ability-damage-label">${escapeHtml(label)}</span>
+      <code class="ability-damage-expr">${escapeHtml(field.expr)}</code>
+      ${control}
+    </div>`;
+}
+
 /**
  * The expanded form: what the ability actually is, and every part of it
  * editable.
@@ -373,6 +425,7 @@ function abilityForm(session: EditSession, row: AbilityRow): string {
   const id = row.rowId;
   const text = session.abilityText(id);
   const dcs = session.abilityDCs(id);
+  const damage = session.abilityDamage(id);
 
   const typeOptions = ACTION_TYPES.map(
     (t) =>
@@ -410,6 +463,13 @@ function abilityForm(session: EditSession, row: AbilityRow): string {
       </label>
 
       ${dcs.length ? `<div class="ability-dcs">${dcs.map((d) => abilityDCRow(id, d)).join("")}</div>` : ""}
+      ${
+        damage.length
+          ? `<div class="ability-damages">${damage
+              .map((d) => abilityDamageRow(id, d))
+              .join("")}</div>`
+          : ""
+      }
       ${renderLiveNotes(session, id)}
 
       <label class="ability-form-row grow">

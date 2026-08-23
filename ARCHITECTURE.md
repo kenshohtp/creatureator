@@ -451,10 +451,40 @@ ability's Frequency, which the harvest did not capture, and even knowing it,
 only a fifth to a third land exactly.
 
 **Decision: still no automatic scaling, but stop saying nothing.** For an
-ability whose damage carries `options:area-damage`, the editor can offer the two
+ability whose damage carries `options:area-damage`, the editor offers the two
 Table 2-12 figures for the target level as explicit choices, labelled by column.
 That is a real answer for a third of ability damage. Everything else stays as it
 is: surfaced, explained, and left alone.
+
+**Built.** `areaDamageAt()` in `rescale-ability.ts` reads Table 2-12;
+`EditSession.abilityDamage()` lists every damage term in an ability with the
+options that apply to it and, when none do, the reason; `setAbilityDamage()`
+writes one term back through `withDamageTerm`, so the element's parameters,
+label and sibling terms come through byte for byte.
+
+Three things the design had to get right, each of them a lesson already paid
+for elsewhere in the module:
+
+- **The options advertise what they will deliver.** The ability keeps its own
+  die size, so a d8 ability offered level 5's "6d6 (21)" is shown `4d8+3`, not
+  `6d6`. This is the Strike-damage dropdown bug from 6.1, avoided by building
+  the option through the same re-expression as the write rather than reading the
+  table twice.
+- **The columns are named, not banded.** Table 2-12's two columns are a
+  frequency scale ("unlimited use" / "limited use"), not a quality one. Which
+  applies depends on the ability's Frequency, and a PF2e `action` item does not
+  record its frequency in any readable field — so both are offered and the user
+  chooses. Rendering them as bands would invent a judgement the table does not
+  make.
+- **Every term that gets no option says why.** Not-area, flat amount,
+  unreadable formula and out-of-range level each produce a distinct note. A
+  number left alone deliberately and a number nobody looked at must not render
+  identically.
+
+The note attached to a non-area `@Damage` still reads "no published table
+governs ability damage closely enough"; the note on an area one now names Table
+2-12 and says the choice hinges on Frequency. Saying the general sentence about
+an area ability would have been true in letter and misleading in substance.
 
 Method note: this is the second time a measurement has been quietly running on a
 fraction of its data (the first was the classifier's nearest-match at 86%). Both

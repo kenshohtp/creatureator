@@ -927,6 +927,27 @@ export class ChassisPicker extends ApplicationV2 {
         void this.render();
       });
     });
+
+    /**
+     * The Table 2-12 figures for area damage.
+     *
+     * The option's value is the expression that will actually be written -
+     * built by the session through the same re-expression as the write - so
+     * there is no second lookup here to disagree with what was displayed.
+     */
+    root.querySelectorAll<HTMLSelectElement>("select.ability-damage-area").forEach(
+      (select) => {
+        select.addEventListener("change", () => {
+          const id = select.dataset["ability"];
+          const index = Number(select.dataset["inline"]);
+          const term = Number(select.dataset["term"]);
+          if (!id || !select.value) return;
+          if (!Number.isFinite(index) || !Number.isFinite(term)) return;
+          session.setAbilityDamage(id, index, term, select.value);
+          void this.render();
+        });
+      }
+    );
   }
 
   /**

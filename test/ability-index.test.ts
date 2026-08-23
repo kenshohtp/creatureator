@@ -369,6 +369,177 @@ describe("editing an ability", () => {
 });
 
 /**
+ * Area damage, and the one table that has anything to say about it.
+ *
+ * Ability damage is not rescaled and should not be: measured across 799 area
+ * abilities, Table 2-12 is right only 30.5% of the time — three times better
+ * than the Strike table, and nowhere near good enough to move a number on
+ * someone's behalf. What it *is* good enough for is an offer. So an area term
+ * carries both of Table 2-12's columns as choices, and everything else carries
+ * the reason it has none.
+ *
+ * Every string here is real PF2e syntax taken from the bestiary sample that the
+ * parameter parsing was built against.
+ */
+describe("area damage", () => {
+  const src = JSON.parse(
+    readFileSync(resolve(import.meta.dirname, "fixtures/ability-creature.json"), "utf8")
+  ) as NPCSource;
+
+  /** Level 5: Table 2-12 reads "2d10 (12)" unlimited, "6d6 (21)" limited. */
+  const withText = (text: string) => {
+    const s = new EditSession(src, rescaleCreature(src, 5));
+    const id = s.addAbility("Spore Cloud");
+    s.setAbilityField(id, "description", text);
+    return { s, id };
+  };
+
+  it("offers both of Table 2-12's columns for an area term", () => {
+    const { s, id } = withText("<p>@Damage[7d8[poison]|options:area-damage]</p>");
+    const fields = s.abilityDamage(id);
+
+    expect(fields).toHaveLength(1);
+    expect(fields[0]).toMatchObject({ expr: "7d8", damageType: "poison", isArea: true, note: null });
+    expect(fields[0]!.options.map((o) => o.key)).toEqual(["unlimited use", "limited use"]);
+    expect(fields[0]!.options.map((o) => o.average)).toEqual([12, 21]);
+  });
+
+  /**
+   * The Bog Elder's own breath is @Damage[6d6[poison]] with no parameter, and
+   * that is the ordinary case. It is still listed — with the reason — because
+   * "considered and left alone" must not look like "not noticed".
+   */
+  it("offers nothing for damage that is not marked as area, and says why", () => {
+    const s = new EditSession(src, rescaleCreature(src, 5));
+    const fields = s.abilityDamage("own:breathofthebog01");
+
+    expect(fields).toHaveLength(1);
+    expect(fields[0]).toMatchObject({ expr: "6d6", isArea: false });
+    expect(fields[0]!.options).toEqual([]);
+    expect(fields[0]!.note).toContain("Not marked as area damage");
+  });
+
+  it("rewrites only the chosen term, keeping the parameter and the label", () => {
+    const { s, id } = withText(
+      "<p>Spores burst: @Damage[7d8[poison]|options:area-damage]{Spore Explosion} " +
+        "and @Damage[1d6[fire]] splash.</p>"
+    );
+    const limited = s.abilityDamage(id)[0]!.options[1]!;
+    expect(s.setAbilityDamage(id, 0, 0, limited.expr)).toBe(true);
+
+    const text = s.abilityText(id);
+    expect(text).toContain("@Damage[4d8+3[poison]|options:area-damage]{Spore Explosion}");
+    // Everything else is byte for byte what it was.
+    expect(text).toContain("Spores burst:");
+    expect(text).toContain("@Damage[1d6[fire]] splash.");
+  });
+
+  /**
+   * The lesson from 6.1, applied before it could happen twice: the dropdown
+   * advertised Table 2-10's own dice while the override preserved the chassis's
+   * die size, so it promised 2d4+6 and delivered 2d6+4. The option here is
+   * built through the same re-expression the write uses, so a d8 ability offered
+   * the level's "6d6 (21)" both reads and writes as a d8.
+   */
+  it("keeps the ability's die size when the table's figure uses another", () => {
+    const { s, id } = withText("<p>@Damage[7d8[poison]|options:area-damage]</p>");
+    const options = s.abilityDamage(id)[0]!.options;
+
+    expect(options.map((o) => o.expr)).toEqual(["2d8+3", "4d8+3"]);
+    s.setAbilityDamage(id, 0, 0, options[0]!.expr);
+    expect(s.abilityText(id)).toContain("@Damage[2d8+3[poison]|options:area-damage]");
+  });
+
+  it("leaves a flat area amount alone", () => {
+    const { s, id } = withText("<p>@Damage[20[force]|options:area-damage]</p>");
+    const field = s.abilityDamage(id)[0]!;
+
+    expect(field).toMatchObject({ expr: "20", isArea: true, average: 20 });
+    expect(field.options).toEqual([]);
+    expect(field.note).toContain("Flat amount");
+  });
+
+  /**
+   * Dragon Breath, verified live on a level 5 creature: the sheet renders it as
+   * 5d6, because `@actor.level` resolves at roll time. It is not a formula this
+   * module can do arithmetic on, and it is also not broken - it already tracks
+   * level, so offering it a fixed Table 2-12 figure would be a downgrade. The
+   * note has to say which of those two things is true.
+   */
+  it("says a self-scaling formula scales, rather than calling it unreadable", () => {
+    const { s, id } = withText(
+      "<p>@Damage[(@actor.level)d6[untyped]|options:area-damage]</p>"
+    );
+    const field = s.abilityDamage(id)[0]!;
+
+    expect(field.average).toBeNull();
+    expect(field.options).toEqual([]);
+    expect(field.note).toContain("already scales");
+    expect(field.note).not.toContain("cannot read");
+  });
+
+  it("still says so plainly when a formula really is unreadable", () => {
+    const { s, id } = withText("<p>@Damage[lots[poison]|options:area-damage]</p>");
+    const field = s.abilityDamage(id)[0]!;
+
+    expect(field.options).toEqual([]);
+    expect(field.note).toContain("Not a formula this module can read");
+  });
+
+  it("lists each term of a multi-term element separately", () => {
+    const { s, id } = withText(
+      "<p>@Damage[2d4[piercing],2d8[electricity]|options:area-damage]</p>"
+    );
+    const fields = s.abilityDamage(id);
+
+    expect(fields.map((f) => [f.index, f.termIndex, f.expr])).toEqual([
+      [0, 0, "2d4"],
+      [0, 1, "2d8"],
+    ]);
+    // The second term is rewritten without disturbing the first.
+    expect(s.setAbilityDamage(id, 0, 1, fields[1]!.options[0]!.expr)).toBe(true);
+    expect(s.abilityText(id)).toContain(
+      "@Damage[2d4[piercing],2d8+3[electricity]|options:area-damage]"
+    );
+  });
+
+  it("refuses an expression it cannot read rather than writing it", () => {
+    const { s, id } = withText("<p>@Damage[7d8[poison]|options:area-damage]</p>");
+    expect(s.setAbilityDamage(id, 0, 0, "banana")).toBe(false);
+    expect(s.setAbilityDamage(id, 0, 0, "")).toBe(false);
+    // The index has to be a damage element, not just any inline.
+    expect(s.setAbilityDamage(id, 9, 0, "2d8")).toBe(false);
+    expect(s.setAbilityDamage(id, 0, 9, "2d8")).toBe(false);
+    expect(s.abilityText(id)).toContain("@Damage[7d8[poison]|options:area-damage]");
+  });
+
+  /**
+   * Labelled by column, not by band. Table 2-12's two columns are a frequency
+   * scale, not a quality one, and which applies depends on the ability's
+   * Frequency — which nothing in a PF2e action item records. Calling them
+   * "High" and "Moderate" would invent a judgement the table does not make.
+   */
+  it("renders the two columns named by frequency", () => {
+    const { s, id } = withText("<p>@Damage[7d8[poison]|options:area-damage]</p>");
+    const html = renderAbilities(s, { ...EMPTY_ABILITY_PANEL }, id);
+
+    expect(html).toContain("ability-damage-area");
+    expect(html).toContain("Unlimited use — 2d8+3 (12)");
+    expect(html).toContain("Limited use — 4d8+3 (21)");
+    expect(html).toContain("Poison damage");
+  });
+
+  it("tells an area ability that a table applies, and other damage that none does", () => {
+    const { s, id } = withText("<p>@Damage[7d8[poison]|options:area-damage]</p>");
+    expect(s.abilityNotes(id)[0]!.detail).toContain("Table 2-12");
+    expect(s.abilityNotes(id)[0]!.detail).toContain("Frequency");
+
+    const plain = withText("<p>@Damage[7d8[poison]]</p>");
+    expect(plain.s.abilityNotes(plain.id)[0]!.detail).toContain("No published table governs");
+  });
+});
+
+/**
  * Copying an ability off another creature.
  *
  * This is where the abilities actually are: the shared packs hold about 1,300,

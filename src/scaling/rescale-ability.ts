@@ -34,11 +34,19 @@
  * enough to move a number on someone's behalf, so they are reported and left
  * for the user.
  *
- * **Damage.** Ability `@Damage` does not fit any single published table: the
- * best of the two candidates (Table 2-10 Strike Damage, Table 2-12 Area Damage)
- * reaches only 13.8% exact. Ability damage covers headline area damage, small
- * riders, persistent damage and healing all at once, and until those can be
- * told apart the honest thing is to surface it and leave it alone.
+ * **Damage.** Ability `@Damage` is never rescaled automatically, but the reason
+ * is narrower than it once was. Ability damage covers headline area damage,
+ * small riders, persistent damage and healing all at once — and area abilities
+ * mark themselves, via `options:area-damage`. Re-measured on all 799 of them
+ * (the first pass ran on 81; the parser was dropping the rest), area damage
+ * lands on one of Table 2-12's two columns 30.5% of the time against 10.5% for
+ * the Strike table. That is decisive about which table is relevant and useless
+ * as an automatic rule, because which of the two columns applies depends on the
+ * ability's Frequency, which nothing in the item records.
+ *
+ * So: still nothing moves on its own, but for area damage the editor offers
+ * both Table 2-12 figures for the target level as explicit, labelled choices
+ * (`areaDamageAt` below). Everything else is surfaced, explained, left alone.
  *
  * No Foundry dependency: pure text in, pure text out.
  */
@@ -47,6 +55,7 @@ import { classify, reemit, type Band } from "./bands.js";
 import { rowFor, parseCellOrNull, threshold } from "./bands.js";
 import {
   findInlines,
+  isAreaDamage,
   withDC,
   type Inline,
   type InlineCheck,
@@ -112,6 +121,45 @@ export function abilityDCAt(level: number, band: Band): number | null {
   return cell === null ? null : Math.round(threshold(cell));
 }
 
+/**
+ * Table 2-12's two columns, in the order GM Core prints them.
+ *
+ * Which one applies to a given ability depends on its Frequency — an at-will
+ * blast is "unlimited use", a once-per-day breath weapon is "limited use" —
+ * and a PF2e action item does not record its own frequency in any field the
+ * module can read. So this is never inferred; both are offered and the user
+ * picks.
+ */
+export type AreaDamageColumn = "unlimited use" | "limited use";
+
+export const AREA_DAMAGE_COLUMNS: readonly AreaDamageColumn[] = [
+  "unlimited use",
+  "limited use",
+];
+
+/**
+ * What Table 2-12 publishes for one column at a level: `"2d10 (12)"` read as
+ * its expression and its average.
+ *
+ * Both halves matter to the caller. The average is the target; the expression
+ * supplies the dice *count* to aim for, while the ability keeps its own die
+ * size — the same rule Strike damage follows, for the same reason. Null when
+ * the level is outside the table (it runs -1 to 24) rather than throwing, so a
+ * field can explain itself instead of a panel failing to render.
+ */
+export function areaDamageAt(
+  level: number,
+  column: AreaDamageColumn
+): { expr: string; average: number } | null {
+  try {
+    const raw = rowFor("areaDamage", level)[column];
+    const cell = raw === undefined ? null : parseCellOrNull(raw);
+    return cell?.kind === "damage" ? { expr: cell.expr, average: cell.average } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Classify a save DC against Table 2-11, or null if the level has no row. */
 export function classifyAbilityDC(
   level: number,
@@ -133,12 +181,20 @@ function noteFor(inline: Inline): AbilityNote | null {
     const shown = inline.terms
       .map((t) => `${t.expr}${t.damageType ? ` ${t.damageType}` : ""}`)
       .join(" plus ");
+    /**
+     * Two different truths, and saying the general one about an area ability
+     * would now be a lie of omission: Table 2-12 *is* the relevant table for
+     * these, it is simply not decisive enough to apply on someone's behalf.
+     */
     return {
       reason: "damage",
-      detail:
-        `Left ${shown || inline.inner} unchanged. No published table governs ` +
-        `ability damage closely enough to move it for you - set it by hand if ` +
-        `it should change.`,
+      detail: isAreaDamage(inline)
+        ? `Left ${shown || inline.inner} unchanged. This is marked as area ` +
+          `damage, so Table 2-12's two figures for this level are offered as ` +
+          `choices - which one applies depends on the ability's Frequency.`
+        : `Left ${shown || inline.inner} unchanged. No published table governs ` +
+          `ability damage closely enough to move it for you - set it by hand if ` +
+          `it should change.`,
     };
   }
 

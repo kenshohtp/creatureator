@@ -101,6 +101,29 @@ export function damageParameters(damage: InlineDamage): string[] {
   return [];
 }
 
+/**
+ * True when a damage element is marked as area damage.
+ *
+ * PF2e writes the marker into the element itself —
+ * `@Damage[7d8[poison]|options:area-damage]` — which is what makes area
+ * abilities identifiable without a separate harvest. That matters because
+ * Table 2-12 (Area Damage) governs them three times better than the Strike
+ * table does (30.5% exact against 10.5%; see ARCHITECTURE 7.6), and nothing
+ * else in the item says which abilities it applies to.
+ *
+ * `options:` carries a comma-separated list, so the value is split rather than
+ * compared whole: `options:area-damage,damaging-effect` counts.
+ */
+export function isAreaDamage(damage: InlineDamage): boolean {
+  return damageParameters(damage).some((p) => {
+    if (!p.startsWith("options:")) return false;
+    return p
+      .slice("options:".length)
+      .split(",")
+      .some((o) => o.trim() === "area-damage");
+  });
+}
+
 export interface InlineTemplate extends Located {
   kind: "template";
 }
