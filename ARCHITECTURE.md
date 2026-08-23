@@ -830,9 +830,21 @@ run carries the real figure.
 
 ### 7.4 Licensing
 
-Generated table data is Open Game Content under the ORC licence. Needs a `NOTICE.md`
-before first publish. Creature *descriptions* and art stay in Paizo's premium modules
-and are never copied into module output.
+Generated table data is Open Game Content under the ORC licence. `NOTICE.md` carries
+the required ORC Notice and Attribution, both copied from GM Core's own legal page.
+
+**Redistribution and use are different things**, and this section used to conflate
+them. It claimed creature descriptions and art "are never copied into module output".
+That is false, and was false when written: Layer 1 deep-clones a compendium actor, so
+its description and token art travel with it, and grafting an ability copies the
+item's text verbatim. That is the feature, not a leak.
+
+The true statement is narrower. The *released module* redistributes only the
+mechanical tables. Everything else is read at runtime out of compendia the user has
+installed and licensed — Paizo premium modules very much included, since that is
+where most usable chassis live — and the resulting creature stays in the user's own
+world. Owning the premium modules is a supported and expected setup, not a problem to
+be designed around.
 
 ### 7.2 AoN CORS — RESOLVED
 

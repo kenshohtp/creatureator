@@ -105,9 +105,10 @@ follows:
       generated tables; all 140 are band names, column headers, table captions, GM
       Core page citations, object keys, or item examples like
       `10 (_+2 striking weapon_)`. **Re-run it after `npm run fetch:tables`.**
-- [x] Release artifact contains no Paizo premium module content
-      (enforced: the allowlist in `tools/package-module.mjs` ships seven named
-      paths and excludes everything else by default)
+- [x] Release artifact redistributes no Paizo content beyond the ORC-licensed tables
+      (enforced: the allowlist in `tools/package-module.mjs` ships seven named paths
+      and excludes everything else by default). This is a claim about the *artifact*
+      only — at runtime the module reads the user's own premium compendia by design.
 
 **What `module.zip` must contain — now enforced.** Build the archive with
 `npm run package`, never by hand. `tools/package-module.mjs` ships a strict
@@ -124,15 +125,28 @@ two of the checklist items above be enforced rather than re-read every release.
 
 ---
 
-## What is deliberately NOT included
+## What is redistributed, and what is merely used
 
-- Creature names, stat blocks, descriptions, or lore
-- Artwork or tokens of any kind
-- Any content from Paizo's premium Foundry modules
+These are different things, and conflating them misdescribes the module in both
+directions.
 
-Creature chassis and abilities are read at runtime from the user's own installed
-compendia. Nothing Paizo-owned beyond the mechanical tables above is redistributed in
-this repository or in any release artifact.
+**Redistributed** — in this repository and in `module.zip` — is the mechanical table
+data in `src/data/creature-tables.ts`, and nothing else Paizo-owned. No creature
+names, stat blocks, descriptions or lore; no artwork or tokens; no content from any
+Paizo premium Foundry module. This is enforced by the allowlist in
+`tools/package-module.mjs` rather than by remembering.
+
+**Used at runtime, from the user's own installation** — everything else, by design.
+Choosing a chassis deep-clones an actor out of a compendium the user has installed,
+and grafting an ability copies that item, description text included, onto the new
+creature. Where those compendia come from Paizo premium modules the user has bought,
+that content is theirs under that purchase, and this module handles it exactly as
+Foundry's own "duplicate actor" does. The premium modules are not something the
+module works around; they are where most of the good chassis live.
+
+Nothing is uploaded, bundled or transmitted anywhere. Creatures built this way exist
+in the user's own world, and what they may subsequently do with one is governed by
+their licence with Paizo, not by this module.
 
 ## Archives of Nethys
 
