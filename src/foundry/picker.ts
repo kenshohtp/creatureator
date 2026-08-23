@@ -35,9 +35,12 @@ import {
 } from "./editor-view.js";
 import {
   buildAbilityIndex,
+  buildEmbeddedAbilityIndex,
+  collapseByName,
   filterAbilities,
   sortAbilities,
   type AbilityEntry,
+  type EmbeddedAbilityEntry,
 } from "./ability-index.js";
 import { EditSession, type DefenceKind } from "../editor/edit-session.js";
 import { readAbility, type AbilityItem } from "../pf2e/ability.js";
@@ -124,6 +127,15 @@ export class ChassisPicker extends ApplicationV2 {
   #abilityCreature: { uuid: string; name: string; level: number | null } | null = null;
   #abilityCreatureItems: Record<string, any>[] = [];
   #abilityCreatureLoading = false;
+
+  /**
+   * Every ability embedded in every creature, 33,268 of them on a full install.
+   * Built lazily on the first search rather than when the window opens: it
+   * costs about two seconds, and nobody who does not search should pay it.
+   * Null means "not built yet", which is distinct from "built and empty".
+   */
+  #embedded: EmbeddedAbilityEntry[] | null = null;
+  #embeddedLoading = false;
 
   #all: ChassisEntry[] = [];
   #state: PickerState = {
@@ -357,6 +369,20 @@ export class ChassisPicker extends ApplicationV2 {
         ).slice(0, MAX_ABILITY_ROWS)
       : [];
 
+    // The same search box finds abilities across every creature. Collapse by
+    // name first, so `Grab` is one row from the creature nearest this level
+    // rather than several hundred identical ones.
+    const level = this.#session?.level ?? 1;
+    const embeddedResults = creatureSearch.trim()
+      ? sortAbilities(
+          collapseByName(
+            filterAbilities(this.#embedded ?? [], { search: creatureSearch }) as EmbeddedAbilityEntry[],
+            level
+          ),
+          creatureSearch
+        ).slice(0, MAX_ABILITY_ROWS) as EmbeddedAbilityEntry[]
+      : [];
+
     return {
       mode: this.#abilityMode,
       search,
@@ -371,7 +397,68 @@ export class ChassisPicker extends ApplicationV2 {
         (i) => readAbility(i) as AbilityItem
       ),
       creatureLoading: this.#abilityCreatureLoading,
+      embeddedResults,
+      embeddedLoading: this.#embeddedLoading,
+      embeddedTotal: this.#embedded?.length ?? 0,
     };
+  }
+
+  /**
+   * Build the embedded ability index, once.
+   *
+   * `getIndex({fields:["items"]})` returns embedded items outright, so this is
+   * about two seconds across a full install rather than the minute a
+   * `getDocuments()` sweep would cost. It also constructs no documents, so it
+   * raises none of PF2e's pre-remaster validation warnings.
+   */
+  async #ensureEmbedded(): Promise<void> {
+    if (this.#embedded || this.#embeddedLoading) return;
+    this.#embeddedLoading = true;
+    void this.render();
+    try {
+      const packs = game.packs.contents ?? [...game.packs];
+      this.#embedded = await buildEmbeddedAbilityIndex(packs as never);
+    } catch (error) {
+      console.error("creatureator | embedded ability index failed", error);
+      this.#embedded = [];
+    } finally {
+      this.#embeddedLoading = false;
+      void this.render();
+    }
+  }
+
+  /**
+   * Copy an ability found by searching every creature.
+   *
+   * Identical to copying off a browsed creature - the source level is known, so
+   * the DC rescale is exact - except the creature was found by the ability
+   * rather than the other way round.
+   */
+  #copyEmbedded(index: number, session: EditSession): void {
+    const entry = this.#abilityPanel().embeddedResults[index];
+    if (!entry) return;
+
+    void (async () => {
+      try {
+        const item = await fromUuid(entry.uuid);
+        const source = (item as { toObject?: () => Record<string, unknown> })?.toObject?.();
+        if (!source) throw new Error("that ability could not be read");
+
+        const report = session.graft(source, {
+          fromLevel: entry.creature.level ?? session.level,
+          sourceUuid: entry.uuid,
+        });
+        const moved = report.changes.length
+          ? ` (${report.changes.map((c) => `${c.label} ${c.from}\u2192${c.to}`).join(", ")})`
+          : "";
+        ui.notifications?.info(`Copied ${report.name} from ${entry.creature.name}${moved}.`);
+        this.#expandedAbility = `graft:${session.graftedCount - 1}`;
+        void this.render();
+      } catch (error) {
+        console.error("creatureator | could not copy that ability", error);
+        ui.notifications?.error(`Could not copy that ability: ${(error as Error).message}`);
+      }
+    })();
   }
 
   /**
@@ -785,9 +872,19 @@ export class ChassisPicker extends ApplicationV2 {
       });
     });
 
+    root.querySelectorAll<HTMLButtonElement>("button.ability-copy-embedded").forEach((button) => {
+      button.addEventListener("click", () => {
+        this.#copyEmbedded(Number(button.dataset["embedded"]), session);
+      });
+    });
+
     root.querySelector<HTMLInputElement>("input.ability-creature-search")
       ?.addEventListener("input", (ev) => {
         this.#abilityCreatureSearch = (ev.target as HTMLInputElement).value;
+        // First keystroke pays for the index; every later one is free. Creature
+        // name matching works immediately either way, so the box is never dead
+        // while the sweep runs.
+        if (this.#abilityCreatureSearch.trim()) void this.#ensureEmbedded();
         this.#rerender();
       });
 

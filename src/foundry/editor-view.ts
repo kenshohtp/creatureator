@@ -27,7 +27,7 @@ import type {
   EditSection,
   EditSession,
 } from "../editor/edit-session.js";
-import type { AbilityEntry } from "./ability-index.js";
+import type { AbilityEntry, EmbeddedAbilityEntry } from "./ability-index.js";
 import type { ChassisEntry } from "./chassis.js";
 import { actionCostLabel, type AbilityItem } from "../pf2e/ability.js";
 import type { Band } from "../scaling/bands.js";
@@ -561,6 +561,15 @@ export interface AbilityPanel {
   creature: { uuid: string; name: string; level: number | null } | null;
   creatureAbilities: readonly AbilityItem[];
   creatureLoading: boolean;
+
+  /**
+   * Abilities matching the search, drawn from every creature in the install
+   * rather than from one browsed creature. Built lazily on the first search
+   * because it costs about two seconds; `embeddedLoading` covers that wait.
+   */
+  embeddedResults: readonly EmbeddedAbilityEntry[];
+  embeddedLoading: boolean;
+  embeddedTotal: number;
 }
 
 /** A panel with nothing in it, for tests and for the first render. */
@@ -573,6 +582,9 @@ export const EMPTY_ABILITY_PANEL: AbilityPanel = {
   sourceLevel: 1,
   creatureSearch: "",
   creatureResults: [],
+  embeddedResults: [],
+  embeddedLoading: false,
+  embeddedTotal: 0,
   creature: null,
   creatureAbilities: [],
   creatureLoading: false,
@@ -607,15 +619,46 @@ function resultRow(entry: AbilityEntry): string {
 /**
  * Browsing another creature's abilities.
  *
- * This is where the abilities actually are. The shared packs hold around 1,300;
- * the bestiary's creatures carry roughly 30,000 between them, five apiece. They
- * cannot be indexed - that would mean loading every actor - so they are reached
- * one creature at a time instead.
+ * This is where the abilities actually are. The shared packs hold around 1,400;
+ * the bestiary's creatures carry 33,268 between them, roughly five apiece. They
+ * *can* be indexed - `getIndex({fields:["items"]})` returns embedded items in
+ * about two seconds - so they are searchable directly as well as browsable one
+ * creature at a time.
  *
  * The compensation is exactness. A compendium ability item has no level, so the
  * panel has to ask what its DCs were written for; a creature has a level, so
  * anything copied off it rescales correctly with nothing to ask.
  */
+/**
+ * One ability found by searching every creature.
+ *
+ * The creature and its level are shown because they are the reason to prefer
+ * this over a compendium item: the level is known, so the DC rescale is exact.
+ * `sources` says how many other creatures carry the same name, so the row does
+ * not imply the one shown is the only one - the collapse picked the creature
+ * nearest the target level, and that choice should be visible.
+ */
+function embeddedAbilityRow(entry: EmbeddedAbilityEntry, index: number): string {
+  const cost =
+    entry.actionType === "action"
+      ? `${entry.actions ?? 1} action${(entry.actions ?? 1) === 1 ? "" : "s"}`
+      : entry.actionType === "free"
+        ? "free action"
+        : entry.actionType;
+  const level = entry.creature.level === null ? "?" : String(entry.creature.level);
+  const also = entry.sources > 1 ? `on ${entry.sources} creatures` : "";
+
+  return `
+    <li class="ability-result" data-embedded="${index}">
+      <span class="ability-cost">${escapeHtml(cost)}</span>
+      <span class="ability-name">${escapeHtml(entry.name)}</span>
+      <span class="ability-traits">${escapeHtml(entry.traits.slice(0, 3).join(", "))}</span>
+      <span class="ability-origin">${escapeHtml(entry.creature.name)} &middot; Creature ${escapeHtml(level)}</span>
+      <span class="muted">${escapeHtml(also)}</span>
+      <button type="button" class="ability-copy-embedded" data-embedded="${index}">Copy</button>
+    </li>`;
+}
+
 function creatureAbilityRow(ability: AbilityItem, index: number): string {
   return `
     <li class="ability-result" data-source-ability="${index}">
@@ -671,18 +714,31 @@ function creatureMode(panel: AbilityPanel, creatureLevel: number): string {
       <ol class="ability-results">${list}</ol>`;
   }
 
-  const status = panel.creatureSearch.trim() === ""
-    ? `<li class="ability-note muted">Search for a creature, then copy from what it has.</li>`
-    : panel.creatureResults.length
-      ? ""
-      : `<li class="ability-note muted">No creature matches "${escapeHtml(panel.creatureSearch)}".</li>`;
+  const searching = panel.creatureSearch.trim() !== "";
+
+  // Abilities first: searching by ability name is the common case, and it is
+  // the thing this panel could not do until the embedded pool became reachable.
+  const abilitySection = !searching
+    ? panel.embeddedTotal
+      ? `<li class="ability-note muted">${panel.embeddedTotal} abilities across your creatures - type to search.</li>`
+      : `<li class="ability-note muted">Search an ability name, or a creature to browse.</li>`
+    : panel.embeddedLoading
+      ? `<li class="ability-note muted">Reading every creature's abilities...</li>`
+      : panel.embeddedResults.length
+        ? panel.embeddedResults.map(embeddedAbilityRow).join("")
+        : `<li class="ability-note muted">No ability matches "${escapeHtml(panel.creatureSearch)}".</li>`;
+
+  const creatureSection = !searching || !panel.creatureResults.length
+    ? ""
+    : `<li class="ability-note muted">Creatures</li>${panel.creatureResults.map(creatureResultRow).join("")}`;
 
   return `
     <div class="ability-add-controls">
-      <input type="search" class="ability-creature-search" placeholder="Search creatures"
-             value="${escapeHtml(panel.creatureSearch)}" aria-label="Search creatures">
+      <input type="search" class="ability-creature-search"
+             placeholder="Search abilities, or a creature to browse"
+             value="${escapeHtml(panel.creatureSearch)}" aria-label="Search abilities or creatures">
     </div>
-    <ol class="ability-results">${status}${panel.creatureResults.map(creatureResultRow).join("")}</ol>`;
+    <ol class="ability-results">${abilitySection}${creatureSection}</ol>`;
 }
 
 /**
