@@ -50,6 +50,17 @@ export interface InlineCheck extends Located {
   checkType: string;
   dc: number | null;
   /**
+   * The `against:` parameter, naming a statistic on the owner to use as the DC
+   * instead of a number — "class-spell" means "the higher of class DC or spell
+   * DC". Player-facing actions are written this way, and a creature has neither
+   * statistic, so PF2e renders the save as **DC 0**.
+   *
+   * Found on Dragon Breath: `@Check[reflex|basic|against:class-spell|...]`.
+   * Note there is no `dc:` parameter at all, which is why a rewriter that only
+   * replaces one has nothing to replace.
+   */
+  against: string | null;
+  /**
    * A flat check is a fixed probability, not a difficulty. It never scales
    * with level, and rescaling one changes the ability's behaviour outright.
    */
@@ -166,7 +177,17 @@ function parseCheck(located: Located): InlineCheck {
   // when it is a plain number, so nothing else is ever overwritten.
   const dc = dcRaw !== undefined && /^\d+$/.test(dcRaw) ? Number(dcRaw) : null;
 
-  return { ...located, kind: "check", checkType, dc, isFlat: checkType === "flat" };
+  const againstParam = params.find((p) => p.startsWith("against:"));
+  const against = againstParam ? againstParam.slice(8).trim() : null;
+
+  return {
+    ...located,
+    kind: "check",
+    checkType,
+    dc,
+    against,
+    isFlat: checkType === "flat",
+  };
 }
 
 /** Every inline element in a piece of text, in the order they appear. */
@@ -222,10 +243,32 @@ export function withDC(
   if (check.dc === null && !options.force) return check.raw;
 
   const params = check.inner.split("|");
-  const rewritten = params
-    .map((p) => (p.trim().startsWith("dc:") ? `dc:${dc}` : p))
-    .join("|");
-  return `@Check[${rewritten}]${check.label === null ? "" : `{${check.label}}`}`;
+
+  let replaced = false;
+  let kept = params.map((p) => {
+    if (!p.trim().startsWith("dc:")) return p;
+    replaced = true;
+    return `dc:${dc}`;
+  });
+
+  /**
+   * Two cases the naive version got wrong, both real:
+   *
+   *   1. There may be no `dc:` parameter to replace. Dragon Breath is written
+   *      `@Check[reflex|basic|against:class-spell|...]` and takes its DC from
+   *      `against:`. Mapping over the parameters finds nothing and silently
+   *      changes nothing, so the DC has to be *inserted*.
+   *   2. `against:` has to go with it. Leaving it in place keeps the reference
+   *      to a statistic the creature does not have alongside the number that
+   *      was just set, which is at best ambiguous and at worst still 0.
+   *
+   * `against:` is only dropped when the check had no usable DC of its own -
+   * that is, when this call is repairing one rather than rescaling one.
+   */
+  if (check.dc === null) kept = kept.filter((p) => !p.trim().startsWith("against:"));
+  if (!replaced) kept.splice(1, 0, `dc:${dc}`);
+
+  return `@Check[${kept.join("|")}]${check.label === null ? "" : `{${check.label}}`}`;
 }
 
 /** Rewrite one damage term's expression, leaving its type and siblings alone. */

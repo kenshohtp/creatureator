@@ -492,9 +492,11 @@ describe("a DC that cannot resolve on a creature", () => {
   const src = JSON.parse(
     readFileSync(resolve(import.meta.dirname, "fixtures/ability-creature.json"), "utf8")
   ) as NPCSource;
+  // Verbatim from the ability as it shipped, which is how it broke.
   const dragonBreath =
-    "<p>You breathe fire. Each creature must attempt a " +
-    "@Check[reflex|dc:resolve(@actor.system.attributes.classDC.value)|basic] save.</p>";
+    "<p>You breathe fire. It deals 1d6 damage per level " +
+    "(@Damage[(@actor.level)d6[untyped]|options:area-damage]), with a " +
+    "@Check[reflex|basic|against:class-spell|options:area-effect] save.</p>";
 
   const session = () => {
     const s = new EditSession(src, rescaleCreature(src, 5));
@@ -507,7 +509,7 @@ describe("a DC that cannot resolve on a creature", () => {
     const { s, id } = session();
     const dcs = s.abilityDCs(id);
     expect(dcs).toHaveLength(1);
-    expect(dcs[0]).toMatchObject({ label: "Reflex DC", dc: null, unresolved: true });
+    expect(dcs[0]).toMatchObject({ label: "Reflex DC", dc: null, unresolved: true, index: 1 });
     // And the bands are still offered, so it can be given a real value.
     expect(dcs[0]!.options.map((o) => o.value)).toEqual([26, 22, 19]);
   });
@@ -519,20 +521,33 @@ describe("a DC that cannot resolve on a creature", () => {
     expect(html).toContain("Give it a DC…");
   });
 
-  it("replaces the formula with a real number when the user picks one", () => {
+  it("gives it a real DC, and takes the broken reference out with it", () => {
     const { s, id } = session();
-    expect(s.setAbilityDC(id, 0, 22)).toBe(true);
-    expect(s.abilityText(id)).toContain("@Check[reflex|dc:22|basic]");
+    // Index 1: the @Damage comes first in the text.
+    expect(s.setAbilityDC(id, 1, 22)).toBe(true);
+    const text = s.abilityText(id);
+    expect(text).toContain("@Check[reflex|dc:22|basic|options:area-effect]");
+    expect(text).not.toContain("against:class-spell");
+    // The level-scaling damage is none of our business and stays as written.
+    expect(text).toContain("@Damage[(@actor.level)d6[untyped]|options:area-damage]");
     expect(s.abilityDCs(id)[0]).toMatchObject({ dc: 22, band: "high", unresolved: false });
   });
 
-  it("still refuses to rescale one automatically", () => {
+  it("names the reference in the note, rather than calling it a formula", () => {
     const { s, id } = session();
-    // Rescaling the creature must not turn a formula into arithmetic.
+    const html = renderAbilities(s, { ...EMPTY_ABILITY_PANEL }, id);
+    expect(html).toContain("class-spell");
+    expect(html).toContain("which a creature does not have");
+  });
+
+  it("still refuses to repair one automatically", () => {
+    const { s, id } = session();
+    // Rescaling must never invent a number where the ability had none.
     const rescaled = rescaleCreature(src, 20);
     expect(
       rescaled.abilityChanges.every((a) => a.changes.every((c) => Number.isFinite(c.from)))
     ).toBe(true);
-    expect(s.abilityText(id)).toContain("dc:resolve(");
+    expect(s.abilityText(id)).toContain("against:class-spell");
+    expect(s.abilityText(id)).not.toContain("dc:");
   });
 });

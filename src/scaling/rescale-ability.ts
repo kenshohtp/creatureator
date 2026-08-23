@@ -169,13 +169,16 @@ function noteFor(inline: Inline): AbilityNote | null {
      * sheet. Refusing to touch it is right; refusing quietly is not, because
      * the result is a save nobody can fail.
      */
+    const source = inline.against
+      ? `it takes its DC from "${inline.against}" - the owner's own class or ` +
+        `spell DC - which a creature does not have`
+      : `its DC is a formula rather than a number ("${escapeInner(inline.inner)}")`;
+
     return {
       reason: "unresolved-dc",
       detail:
-        `The ${inline.checkType} DC here is a formula, not a number ` +
-        `("${escapeInner(inline.inner)}"). It resolves from a character's class ` +
-        `DC, which a creature does not have, so it shows as DC 0 on the sheet. ` +
-        `Set a number for it below.`,
+        `This ${inline.checkType} save has no DC of its own: ${source}, so the ` +
+        `sheet shows it as DC 0. Set a number for it below.`,
     };
   }
 

@@ -167,3 +167,75 @@ describe("malformed and legacy text", () => {
     expect(hasLegacyRoll("@Damage[2d6[poison]]")).toBe(false);
   });
 });
+
+/**
+ * Dragon Breath, verbatim from a live PF2e 8.4.0 install.
+ *
+ * Copied onto a husk zombie, this rendered as "DC 0 Basic Reflex" on the sheet.
+ * The reason is in the parameters: there is no `dc:` at all. The DC comes from
+ * `against:class-spell`, meaning "the owner's class or spell DC", and a
+ * creature has neither.
+ *
+ * The first repair attempt failed on exactly this: a rewriter that replaces a
+ * `dc:` parameter has nothing to replace, so it silently changed nothing.
+ */
+describe("a check whose DC comes from `against:`", () => {
+  const dragonBreath =
+    "@Check[reflex|basic|against:class-spell|options:area-effect]";
+
+  it("reads the against: reference and reports no numeric DC", () => {
+    expect(check(dragonBreath)).toMatchObject({
+      checkType: "reflex",
+      dc: null,
+      against: "class-spell",
+      isFlat: false,
+    });
+  });
+
+  it("still refuses to touch it without being told to", () => {
+    expect(withDC(check(dragonBreath), 22)).toBe(dragonBreath);
+  });
+
+  it("inserts a DC where there was none, and drops the reference with it", () => {
+    expect(withDC(check(dragonBreath), 22, { force: true })).toBe(
+      "@Check[reflex|dc:22|basic|options:area-effect]"
+    );
+  });
+
+  it("leaves an ordinary check's against-free parameters alone", () => {
+    const ordinary = check("@Check[fortitude|dc:28|basic]");
+    expect(ordinary.against).toBeNull();
+    expect(withDC(ordinary, 22)).toBe("@Check[fortitude|dc:22|basic]");
+  });
+
+  /** A check with both keeps its `against:` — that is a rescale, not a repair. */
+  it("keeps against: when the check already had a real DC", () => {
+    const both = check("@Check[reflex|dc:30|against:class-spell]");
+    expect(withDC(both, 22)).toBe("@Check[reflex|dc:22|against:class-spell]");
+  });
+});
+
+describe("the whole Dragon Breath description", () => {
+  const text =
+    "<p>You breathe deeply and exhale a line or cone of powerful breath. If the " +
+    "dragon had a cone-shaped breath, your breath is a @Template[type:cone|distance:30]. " +
+    "It deals 1d6 damage per level (@Damage[(@actor.level)d6[untyped]|options:area-damage]), " +
+    "with a @Check[reflex|basic|against:class-spell|options:area-effect] save.</p>";
+
+  it("finds every element in it", () => {
+    expect(findInlines(text).map((i) => i.kind)).toEqual([
+      "template",
+      "damage",
+      "check",
+    ]);
+  });
+
+  it("repairs only the save, leaving the level-scaling damage untouched", () => {
+    const out = mapInlines(text, (inline) =>
+      inline.kind === "check" ? withDC(inline, 22, { force: true }) : null
+    );
+    expect(out).toContain("@Check[reflex|dc:22|basic|options:area-effect]");
+    expect(out).toContain("@Damage[(@actor.level)d6[untyped]|options:area-damage]");
+    expect(out).toContain("@Template[type:cone|distance:30]");
+  });
+});

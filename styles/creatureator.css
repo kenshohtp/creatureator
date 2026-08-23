@@ -869,3 +869,16 @@
 .creatureator .ability-dc.unresolved input.ability-dc-input {
   border-color: var(--creatureator-band-extreme);
 }
+
+.creatureator .ability-live-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.78rem;
+}
+
+.creatureator .ability-note-line.urgent {
+  color: var(--creatureator-band-extreme);
+  opacity: 1;
+  font-weight: 500;
+}

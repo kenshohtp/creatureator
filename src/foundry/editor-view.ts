@@ -302,7 +302,7 @@ const ACTION_TYPES: { value: string; label: string }[] = [
  */
 function abilityDCRow(rowId: string, field: AbilityDCField): string {
   const chip = field.unresolved
-    ? `<span class="band unresolved" title="This DC is a formula and shows as 0 on a creature">DC 0 on a creature</span>`
+    ? `<span class="band unresolved" title="This save has no DC of its own, so a creature rolls it against 0">DC 0 on a creature</span>`
     : field.band
       ? `<span class="band ${field.band}">${escapeHtml(
           field.band.charAt(0).toUpperCase() + field.band.slice(1)
@@ -348,6 +348,26 @@ function abilityDCRow(rowId: string, field: AbilityDCField): string {
  * (`@Check[fortitude|dc:22]`), and a GM reflavouring an ability needs to see
  * and keep those. A rich editor hides them behind rendered links.
  */
+/**
+ * What is true of the ability's text right now, re-read on every render.
+ *
+ * The graft report explains what happened on the way in; this explains what is
+ * there. They differ the moment a user pastes something in by hand — which is
+ * exactly when a `DC 0` save most needs pointing out.
+ */
+function renderLiveNotes(session: EditSession, rowId: string): string {
+  const notes = session.abilityNotes(rowId);
+  if (!notes.length) return "";
+  return `<div class="ability-live-notes">${notes
+    .map(
+      (n) =>
+        `<p class="ability-note-line${
+          n.reason === "unresolved-dc" ? " urgent" : ""
+        }">${escapeHtml(n.detail)}</p>`
+    )
+    .join("")}</div>`;
+}
+
 function abilityForm(session: EditSession, row: AbilityRow): string {
   const a = row.ability;
   const id = row.rowId;
@@ -390,6 +410,7 @@ function abilityForm(session: EditSession, row: AbilityRow): string {
       </label>
 
       ${dcs.length ? `<div class="ability-dcs">${dcs.map((d) => abilityDCRow(id, d)).join("")}</div>` : ""}
+      ${renderLiveNotes(session, id)}
 
       <label class="ability-form-row grow">
         <span>Description</span>

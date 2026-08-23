@@ -47,7 +47,9 @@ import {
 import {
   abilityDCAt,
   classifyAbilityDC,
+  rescaleAbilityText,
   SCALED_CHECK_TYPES,
+  type AbilityNote,
 } from "../scaling/rescale-ability.js";
 import { findInlines, withDC, type InlineCheck } from "../pf2e/inline.js";
 import {
@@ -670,6 +672,21 @@ export class EditSession {
     });
 
     return out;
+  }
+
+  /**
+   * What is worth saying about the ability's text *as it stands now*.
+   *
+   * Re-derived from the current text rather than carried over from the graft,
+   * so it covers an ability the user wrote or pasted in themselves. Someone who
+   * pastes a player action carrying `against:class-spell` deserves the same
+   * warning as someone who copied one out of a compendium.
+   *
+   * Rescaling from the level to itself is the trick: nothing moves, and every
+   * reason for not moving something is reported.
+   */
+  abilityNotes(rowId: string): AbilityNote[] {
+    return rescaleAbilityText(this.abilityText(rowId), this.level, this.level).notes;
   }
 
   /**
