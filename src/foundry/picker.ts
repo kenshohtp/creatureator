@@ -417,7 +417,9 @@ export class ChassisPicker extends ApplicationV2 {
     void this.render();
     try {
       const packs = game.packs.contents ?? [...game.packs];
-      this.#embedded = await buildEmbeddedAbilityIndex(packs as never);
+      this.#embedded = await buildEmbeddedAbilityIndex(packs as never, (key) =>
+        game.i18n?.localize(key) ?? ""
+      );
     } catch (error) {
       console.error("creatureator | embedded ability index failed", error);
       this.#embedded = [];

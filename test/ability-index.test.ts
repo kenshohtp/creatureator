@@ -20,6 +20,7 @@ import {
   buildEmbeddedAbilityIndex,
   collapseByName,
   toEmbeddedAbilityEntry,
+  summariseAbility,
   EMBEDDED_INDEX_FIELDS,
   type AbilityEntry,
 } from "../src/foundry/ability-index.js";
@@ -1055,8 +1056,107 @@ describe("embedded ability index", () => {
     });
   });
 
-  it("asks the index for items and the creature's level", () => {
-    expect(EMBEDDED_INDEX_FIELDS).toContain("items");
+  /**
+   * A preview of what the ability does, which is the thing worth knowing before
+   * copying it. Two obstacles: the description is HTML, and PF2e stores shared
+   * abilities as a localisation key rather than prose.
+   */
+  describe("summariseAbility", () => {
+    it("strips tags and collapses whitespace", () => {
+      expect(summariseAbility("<p>The dragon  <b>breathes</b><br>fire.</p>"))
+        .toBe("The dragon breathes fire.");
+    });
+
+    it("resolves a @Localize key through the injected localiser", () => {
+      const out = summariseAbility(
+        "<p>@Localize[PF2E.NPC.Abilities.Glossary.Grab]</p>",
+        (k) => (k === "PF2E.NPC.Abilities.Glossary.Grab" ? "The monster grabs you." : "")
+      );
+      expect(out).toBe("The monster grabs you.");
+    });
+
+    it("shows nothing rather than the raw key when it cannot resolve", () => {
+      // A row reading "PF2E.NPC.Abilities.Glossary.Grab" looks like a bug;
+      // an empty preview reads as "no preview", which is true.
+      expect(summariseAbility("<p>@Localize[PF2E.Some.Key]</p>")).toBe("");
+      expect(summariseAbility("<p>@Localize[PF2E.Some.Key]</p>", (k) => k)).toBe("");
+    });
+
+    it("speaks inline elements instead of leaking them", () => {
+      const out = summariseAbility(
+        "<p>The firewyrm breathes a @Template[cone|distance:30] of fire dealing " +
+          "@Damage[7d6[fire]] with a @Check[reflex|dc:22|basic] save.</p>"
+      );
+      expect(out).toBe(
+        "The firewyrm breathes a 30-foot cone of fire dealing 7d6 fire with a DC 22 reflex save."
+      );
+      expect(out).not.toContain("@");
+    });
+
+    it("leaves the word 'save' to the surrounding prose", () => {
+      // PF2e writes "(@Check[...] save)", so speaking the element as
+      // "DC 22 reflex save" would render "save save".
+      expect(summariseAbility("<p>a @Check[fortitude|dc:19] save b</p>"))
+        .toBe("a DC 19 fortitude save b");
+    });
+
+    it("handles the type: form of a template, and nested damage brackets", () => {
+      expect(summariseAbility("<p>a @Template[type:cone|distance:15] b</p>"))
+        .toBe("a 15-foot cone b");
+      expect(summariseAbility("<p>@Damage[2d6[persistent,fire]]</p>"))
+        .toBe("2d6 persistent,fire");
+    });
+
+    it("prefers an element's label when it has one", () => {
+      expect(summariseAbility("<p>Uses @UUID[Compendium.pf2e.x.Item.y]{Grab} here.</p>"))
+        .toBe("Uses Grab here.");
+    });
+
+    it("drops an unlabelled element it cannot speak, rather than showing it raw", () => {
+      expect(summariseAbility("<p>See @UUID[Compendium.pf2e.x.Item.y] now.</p>"))
+        .toBe("See now.");
+    });
+
+    it("unescapes the entities a description actually contains", () => {
+      expect(summariseAbility("<p>a &amp; b &lt;c&gt;&nbsp;d</p>")).toBe("a & b <c> d");
+    });
+
+    it("truncates long text with an ellipsis rather than wrapping the row", () => {
+      const out = summariseAbility(`<p>${"word ".repeat(60)}</p>`, () => "", 40);
+      expect(out.length).toBeLessThanOrEqual(40);
+      expect(out.endsWith("\u2026")).toBe(true);
+    });
+  });
+
+  it("carries a summary onto the entry", () => {
+    const e = toEmbeddedAbilityEntry(
+      bestiary,
+      actor("Chimera", 8, []) as any,
+      grab({ system: { description: { value: "<p>It breathes fire.</p>" } } })
+    );
+    expect(e?.summary).toBe("It breathes fire.");
+  });
+
+  it("asks the index for the description, since a preview needs it", () => {
+    expect(EMBEDDED_INDEX_FIELDS).toContain("items.system.description.value");
+  });
+
+  /**
+   * Bare `items` returns objects whose `system` omits actionType, actions,
+   * category and traits — so every ability rendered as a passive with no
+   * traits. Each field this module reads must be asked for by name.
+   */
+  it("asks for every field it reads, by name", () => {
     expect(EMBEDDED_INDEX_FIELDS).toContain("system.details.level.value");
+    expect(EMBEDDED_INDEX_FIELDS).toContain("items.name");
+    expect(EMBEDDED_INDEX_FIELDS).toContain("items.type");
+    expect(EMBEDDED_INDEX_FIELDS).toContain("items.system.actionType.value");
+    expect(EMBEDDED_INDEX_FIELDS).toContain("items.system.actions.value");
+    expect(EMBEDDED_INDEX_FIELDS).toContain("items.system.category");
+    expect(EMBEDDED_INDEX_FIELDS).toContain("items.system.traits.value");
+  });
+
+  it("does not rely on bare `items` carrying a usable system object", () => {
+    expect(EMBEDDED_INDEX_FIELDS).not.toContain("items");
   });
 });

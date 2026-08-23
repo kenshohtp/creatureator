@@ -698,7 +698,18 @@
    room than "HOMEBREW". Traits give up the width, since a passive copied off a
    creature usually has none. */
 .creatureator .ability-result.embedded {
-  grid-template-columns: 5.5rem minmax(7rem, 1fr) minmax(0, 0.7fr) minmax(10rem, 1.4fr) auto;
+  grid-template-columns: 5.5rem minmax(7rem, 0.9fr) minmax(0, 2.2fr) minmax(9rem, 1fr) auto;
+}
+
+/* What the ability does, on one line. The full text is in the title attribute,
+   because a preview that wrapped would make every row a different height and
+   the list unscannable. */
+.creatureator .ability-summary {
+  font-size: 0.8rem;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Not .ability-origin: that is uppercased for the single word "automated", and

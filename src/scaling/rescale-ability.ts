@@ -88,7 +88,41 @@ export interface AbilityNote {
     | "legacy-roll"
     | "unresolved-dc"
     | "unreadable";
+  /**
+   * The whole sentence: subject and explanation together. What most callers
+   * want, and what every existing consumer already reads.
+   */
   detail: string;
+  /**
+   * What was left alone - "9d6 force" - separated from why.
+   *
+   * An ability with nine damage terms produces nine notes whose explanations
+   * are word-for-word identical and whose subjects are all that differ. A
+   * Chimera's Dragon Breath rendered that as nine repetitions of the same
+   * 200-character paragraph. Split, the view can group them and say it once.
+   *
+   * Empty when the note has no distinct subject.
+   */
+  subject: string;
+  /** Why, with the subject removed. Identical across notes that share a cause. */
+  explanation: string;
+}
+
+/**
+ * Build a note from its parts, so `detail` is always subject and explanation
+ * joined the same way and cannot disagree with them.
+ */
+function note(
+  reason: AbilityNote["reason"],
+  subject: string,
+  explanation: string
+): AbilityNote {
+  return {
+    reason,
+    subject,
+    explanation,
+    detail: subject ? `${subject} ${explanation}` : explanation,
+  };
 }
 
 /** Keep a formula readable in a note without letting it break the markup. */
@@ -186,35 +220,33 @@ function noteFor(inline: Inline): AbilityNote | null {
      * would now be a lie of omission: Table 2-12 *is* the relevant table for
      * these, it is simply not decisive enough to apply on someone's behalf.
      */
-    return {
-      reason: "damage",
-      detail: isAreaDamage(inline)
-        ? `Left ${shown || inline.inner} unchanged. This is marked as area ` +
-          `damage, so Table 2-12's two figures for this level are offered as ` +
-          `choices - which one applies depends on the ability's Frequency.`
-        : `Left ${shown || inline.inner} unchanged. No published table governs ` +
-          `ability damage closely enough to move it for you - set it by hand if ` +
-          `it should change.`,
-    };
+    return note(
+      "damage",
+      `Left ${shown || inline.inner} unchanged.`,
+      isAreaDamage(inline)
+        ? `This is marked as area damage, so Table 2-12's two figures for this ` +
+          `level are offered as choices - which one applies depends on the ` +
+          `ability's Frequency.`
+        : `No published table governs ability damage closely enough to move it ` +
+          `for you - set it by hand if it should change.`
+    );
   }
 
   if (inline.isFlat) {
-    return {
-      reason: "flat-check",
-      detail:
-        `Left the DC ${inline.dc ?? "?"} flat check unchanged. Flat checks are ` +
-        `fixed probabilities and do not scale with level.`,
-    };
+    return note(
+      "flat-check",
+      `Left the DC ${inline.dc ?? "?"} flat check unchanged.`,
+      `Flat checks are fixed probabilities and do not scale with level.`
+    );
   }
 
   if (!SCALED_CHECK_TYPES.has(inline.checkType)) {
-    return {
-      reason: "skill-check",
-      detail:
-        `Left the ${inline.checkType} DC ${inline.dc ?? "?"} unchanged. Skill ` +
-        `DCs in creature abilities do not follow the spell DC table reliably ` +
-        `enough to rescale automatically.`,
-    };
+    return note(
+      "skill-check",
+      `Left the ${inline.checkType} DC ${inline.dc ?? "?"} unchanged.`,
+      `Skill DCs in creature abilities do not follow the spell DC table ` +
+        `reliably enough to rescale automatically.`
+    );
   }
 
   if (inline.dc === null) {
@@ -230,12 +262,12 @@ function noteFor(inline: Inline): AbilityNote | null {
         `spell DC - which a creature does not have`
       : `its DC is a formula rather than a number ("${escapeInner(inline.inner)}")`;
 
-    return {
-      reason: "unresolved-dc",
-      detail:
-        `This ${inline.checkType} save has no DC of its own: ${source}, so the ` +
-        `sheet shows it as DC 0. Set a number for it below.`,
-    };
+    return note(
+      "unresolved-dc",
+      `This ${inline.checkType} save has no DC of its own: ${source}, so the ` +
+        `sheet shows it as DC 0.`,
+      `Set a number for it below.`
+    );
   }
 
   return null;
@@ -268,10 +300,13 @@ export function rescaleAbilityText(
 
     const classified = classifyAbilityDC(fromLevel, check.dc);
     if (!classified) {
-      notes.push({
-        reason: "unreadable",
-        detail: `Left ${capitalise(check.checkType)} DC ${check.dc} unchanged - level ${fromLevel} is outside the tables.`,
-      });
+      notes.push(
+        note(
+          "unreadable",
+          `Left ${capitalise(check.checkType)} DC ${check.dc} unchanged.`,
+          `Level ${fromLevel} is outside the tables.`
+        )
+      );
       return null;
     }
 
@@ -279,10 +314,13 @@ export function rescaleAbilityText(
     try {
       next = Math.round(reemit(classified, dcRow(toLevel)));
     } catch {
-      notes.push({
-        reason: "unreadable",
-        detail: `Left ${capitalise(check.checkType)} DC ${check.dc} unchanged - no ${classified.band} DC exists at level ${toLevel}.`,
-      });
+      notes.push(
+        note(
+          "unreadable",
+          `Left ${capitalise(check.checkType)} DC ${check.dc} unchanged.`,
+          `No ${classified.band} DC exists at level ${toLevel}.`
+        )
+      );
       return null;
     }
 

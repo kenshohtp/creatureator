@@ -37,10 +37,12 @@
 import {
   normaliseProvenance,
   resolveCollection,
+  type IndexEntry,
   type PackMeta,
   type Provenance,
 } from "./chassis.js";
 import type { ActionType } from "../pf2e/ability.js";
+import { mapInlines, type Inline } from "../pf2e/inline.js";
 
 export interface AbilityIndexEntry {
   _id: string;
@@ -51,6 +53,7 @@ export interface AbilityIndexEntry {
     actions?: { value?: number | null };
     category?: string;
     traits?: { value?: string[] };
+    description?: { value?: string };
   };
 }
 
@@ -172,6 +175,258 @@ export function traitsIn(entries: readonly AbilityEntry[]): string[] {
   const all = new Set<string>();
   for (const e of entries) for (const t of e.traits) all.add(t);
   return [...all].sort();
+}
+
+// ---------------------------------------------------------------------------
+// Abilities embedded in creatures
+//
+// The pool the docstring above used to call unreachable: 33,268 abilities on
+// 7,894 creatures, under 11,470 distinct names, all of it available from
+// compendium indexes in about two seconds.
+//
+// Instances are collapsed by name before display. `Grab` sits on hundreds of
+// creatures and hundreds of identical rows is not a search result. Which
+// instance survives matters, though — every one carries its creature's level,
+// and grafting rescales save DCs from that level to the target. So the
+// collapse keeps the instance from the creature *closest in level* to the
+// creature being built, which is the copy that needs the least adjustment.
+// ---------------------------------------------------------------------------
+
+/** An ability found on a creature, rather than in an item pack. */
+export interface EmbeddedAbilityEntry extends AbilityEntry {
+  creature: { uuid: string; name: string; level: number | null };
+  /** How many creatures carry an ability of this name. 1 until collapsed. */
+  sources: number;
+  /** One line of what it does. Empty when the description resolves to nothing. */
+  summary: string;
+}
+
+/**
+ * Index fields needed to reach embedded abilities.
+ *
+ * Every field is named explicitly. Asking for bare `items` does return item
+ * objects, and they *look* complete — `_id, name, type, system, img, sort,
+ * flags` — but the `system` inside is not the document's. It lacks
+ * `actionType`, `actions`, `category` and `traits`, so every ability read that
+ * way came back as a passive with no traits, which is what shipped for about
+ * ten minutes on 23 Aug.
+ *
+ * A collapsed `system: {…}` in a console log is not evidence that the fields
+ * you need are in it.
+ *
+ * Dotted paths are honoured (probe, 23 Aug), so this asks for precisely what
+ * `toEmbeddedAbilityEntry` reads and nothing else. The creature's level comes
+ * along because a graft rescales from it.
+ */
+export const EMBEDDED_INDEX_FIELDS = [
+  "system.details.level.value",
+  "items.name",
+  "items.type",
+  "items.system.actionType.value",
+  "items.system.actions.value",
+  "items.system.category",
+  "items.system.traits.value",
+  "items.system.description.value",
+];
+
+/**
+ * An inline element as a reader would say it aloud.
+ *
+ * A preview that leaves `@Template[cone|distance:30]` in the text is worse than
+ * no preview - it is the raw storage format leaking into a sentence. The
+ * parser in `pf2e/inline.ts` is reused rather than a fresh regex written,
+ * because `@Damage[7d6[fire]]` nests brackets and the parser already knows.
+ *
+ * A `{label}` always wins: PF2e writes it precisely so the element has a
+ * human reading.
+ */
+function inlineToText(inline: Inline): string {
+  if (inline.label) return inline.label;
+
+  if (inline.kind === "damage") {
+    return inline.terms
+      .map((t) => (t.damageType ? `${t.expr} ${t.damageType}` : t.expr))
+      .join(" plus ");
+  }
+
+  if (inline.kind === "check") {
+    // No trailing "save": PF2e's own prose supplies it - "(@Check[reflex|dc:22]
+    // save)" - and adding one produces "DC 22 reflex save save".
+    return inline.dc === null ? inline.checkType : `DC ${inline.dc} ${inline.checkType}`;
+  }
+
+  // "cone|distance:30" and "type:cone|distance:30" both occur.
+  const parts = inline.inner.split("|");
+  const shape =
+    parts.find((p) => !p.includes(":")) ??
+    parts.find((p) => p.startsWith("type:"))?.slice(5) ??
+    "area";
+  const distance = parts.find((p) => p.startsWith("distance:"))?.slice(9);
+  return distance ? `${distance}-foot ${shape}` : shape;
+}
+
+/**
+ * A one-line preview of what an ability does.
+ *
+ * Two things stand between the stored description and something readable.
+ *
+ * It is HTML, so tags come out. And PF2e stores shared abilities as a
+ * localisation key rather than prose - Grab's whole description is
+ * `<p>@Localize[PF2E.NPC.Abilities.Glossary.Grab]</p>` - so a preview that
+ * skipped resolution would show the key, which is worse than showing nothing.
+ *
+ * `localize` is injected rather than reached for, because `game.i18n` does not
+ * exist in a test. Unresolved keys fall back to empty rather than to the key
+ * itself: a row with no preview reads as "no preview", where a row showing
+ * `PF2E.NPC.Abilities.Glossary.Grab` reads as a bug.
+ */
+export function summariseAbility(
+  html: string,
+  localize: (key: string) => string = () => "",
+  limit = 140
+): string {
+  const resolved = html.replace(/@Localize\[([^\]]+)\]/g, (_, key: string) => {
+    const text = localize(key);
+    return text && text !== key ? text : "";
+  });
+
+  // @Check, @Damage and @Template through the real parser; anything else
+  // bracketed - @UUID and friends - keeps its label or goes entirely.
+  const spoken = mapInlines(resolved, inlineToText)
+    .replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, "$1")
+    .replace(/@\w+\[[^\]]*\]/g, "");
+
+  const plain = spoken
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return plain.length > limit ? `${plain.slice(0, limit - 1).trimEnd()}\u2026` : plain;
+}
+
+/** One embedded `action` item, as an ability entry. Null if unusable. */
+export function toEmbeddedAbilityEntry(
+  pack: PackMeta,
+  actor: IndexEntry & { items?: AbilityIndexEntry[] },
+  item: AbilityIndexEntry,
+  localize?: (key: string) => string
+): EmbeddedAbilityEntry | null {
+  if (pack.type !== "Actor") return null;
+  if (item.type !== "action") return null;
+  if (!item.name || !item._id || !actor._id) return null;
+
+  const collection = resolveCollection(pack);
+  if (!collection) return null;
+
+  const sys = item.system ?? {};
+  const level = actor.system?.details?.level?.value;
+
+  return {
+    uuid: `Compendium.${collection}.Actor.${actor._id}.Item.${item._id}`,
+    name: item.name,
+    pack: collection,
+    packLabel: pack.label,
+    provenance: normaliseProvenance(pack.packageType),
+    actionType: toActionType(sys.actionType?.value),
+    actions: typeof sys.actions?.value === "number" ? sys.actions.value : null,
+    category: typeof sys.category === "string" ? sys.category : null,
+    traits: Array.isArray(sys.traits?.value) ? [...sys.traits.value] : [],
+    creature: {
+      uuid: `Compendium.${collection}.Actor.${actor._id}`,
+      name: actor.name,
+      level: typeof level === "number" ? level : null,
+    },
+    sources: 1,
+    summary: summariseAbility(String(sys.description?.value ?? ""), localize),
+  };
+}
+
+/**
+ * Collapse repeated ability names, keeping the instance nearest `targetLevel`.
+ *
+ * `sources` records how many were folded together, so the UI can say "on 412
+ * creatures" rather than pretending the one shown is the only one. Entries with
+ * no level lose to any entry that has one: an unknown level makes the DC
+ * rescale a guess, which is exactly what this module refuses to do silently.
+ */
+export function collapseByName(
+  entries: readonly EmbeddedAbilityEntry[],
+  targetLevel: number
+): EmbeddedAbilityEntry[] {
+  const best = new Map<string, EmbeddedAbilityEntry>();
+
+  for (const e of entries) {
+    const key = e.name.toLowerCase();
+    const seen = best.get(key);
+    if (!seen) {
+      best.set(key, { ...e });
+      continue;
+    }
+    seen.sources += 1;
+    const dSeen = seen.creature.level === null
+      ? Infinity
+      : Math.abs(seen.creature.level - targetLevel);
+    const dNew = e.creature.level === null
+      ? Infinity
+      : Math.abs(e.creature.level - targetLevel);
+    if (dNew < dSeen) {
+      const sources = seen.sources;
+      best.set(key, { ...e, sources });
+    }
+  }
+
+  return [...best.values()];
+}
+
+interface FoundryActorPack {
+  collection?: string;
+  metadata: PackMeta;
+  getIndex(options?: { fields?: string[] }): Promise<{
+    contents: (IndexEntry & { items?: AbilityIndexEntry[] })[];
+  }>;
+}
+
+/**
+ * Sweep every Actor pack for abilities embedded in its creatures.
+ *
+ * Measured at 2.0s across 67 packs and 7,894 creatures on a full install
+ * (tools/probe-embedded-index.js). Nothing is constructed as a document, so
+ * unlike a `getDocuments()` sweep this produces none of PF2e's pre-remaster
+ * validation warnings.
+ */
+export async function buildEmbeddedAbilityIndex(
+  packs: readonly FoundryActorPack[],
+  localize?: (key: string) => string
+): Promise<EmbeddedAbilityEntry[]> {
+  const out: EmbeddedAbilityEntry[] = [];
+
+  for (const pack of packs) {
+    if (pack.metadata.type !== "Actor") continue;
+    let index;
+    try {
+      index = await pack.getIndex({ fields: EMBEDDED_INDEX_FIELDS });
+    } catch {
+      continue; // A broken pack should not take the whole sweep down.
+    }
+    const meta: PackMeta = {
+      ...pack.metadata,
+      collection: pack.collection ?? pack.metadata.collection,
+    };
+
+    for (const actor of index.contents) {
+      for (const item of actor.items ?? []) {
+        const entry = toEmbeddedAbilityEntry(meta, actor, item, localize);
+        if (entry) out.push(entry);
+      }
+    }
+  }
+
+  return out;
 }
 
 // ---------------------------------------------------------------------------

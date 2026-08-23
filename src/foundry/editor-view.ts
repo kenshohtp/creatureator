@@ -280,8 +280,20 @@ function abilityDetail(row: AbilityRow): string {
     );
   }
 
-  for (const n of notes) {
-    parts.push(`<span class="ability-note-line">${escapeHtml(n.detail)}</span>`);
+  /**
+   * Notes are grouped by explanation, not listed one per number.
+   *
+   * A Chimera's Dragon Breath carries nine damage terms whose notes differ only
+   * in the subject - "Left 9d6 force unchanged", "Left 9d6 spirit unchanged" -
+   * followed by the same 200-character paragraph nine times. Saying it once and
+   * listing the subjects keeps every number accounted for, which is the §4
+   * promise, without burying the reader to keep it.
+   */
+  for (const g of groupNotes(notes)) {
+    const lead = g.subjects.length ? `${g.subjects.join(" ")} ` : "";
+    parts.push(
+      `<span class="ability-note-line">${escapeHtml(lead)}${escapeHtml(g.explanation)}</span>`
+    );
   }
 
   return parts.length ? `<div class="ability-detail">${parts.join("")}</div>` : "";
@@ -402,10 +414,10 @@ function abilityDamageRow(rowId: string, field: AbilityDamageField): string {
        </select>`
     : `<span class="band none" title="${escapeHtml(field.note ?? "")}">—</span>`;
 
-  const why =
-    field.suggestion && !chosen
-      ? `<p class="ability-note-line ability-damage-why">${escapeHtml(field.suggestion)}</p>`
-      : "";
+  // The suggestion is rendered once beneath the whole damage group rather than
+  // after each row - see abilityDamageGroup. Nine identical paragraphs is not
+  // nine times the transparency.
+  const why = "";
 
   return `
     <div class="ability-damage${field.isArea ? " area" : ""}"
@@ -434,17 +446,76 @@ function abilityDamageRow(rowId: string, field: AbilityDamageField): string {
  * there. They differ the moment a user pastes something in by hand — which is
  * exactly when a `DC 0` save most needs pointing out.
  */
+/**
+ * Group notes that share an explanation, so a common reason is stated once.
+ *
+ * A Chimera's Dragon Breath has nine damage terms. Their notes differ only in
+ * the subject - "Left 9d6 force unchanged", "Left 9d6 spirit unchanged" - and
+ * then repeat the same 200-character paragraph nine times over.
+ *
+ * This lives in one place because it was first written in one place and the
+ * other renderer kept repeating: there are two paths that show notes, and
+ * fixing the summary left the live list untouched and still shouting.
+ */
+function groupNotes(
+  notes: readonly { reason: string; subject: string; explanation: string }[]
+): { reason: string; subjects: string[]; explanation: string }[] {
+  const out = new Map<string, { reason: string; subjects: string[]; explanation: string }>();
+  for (const n of notes) {
+    const seen = out.get(n.explanation);
+    if (seen) {
+      if (n.subject) seen.subjects.push(n.subject);
+      continue;
+    }
+    out.set(n.explanation, {
+      reason: n.reason,
+      subjects: n.subject ? [n.subject] : [],
+      explanation: n.explanation,
+    });
+  }
+  return [...out.values()];
+}
+
 function renderLiveNotes(session: EditSession, rowId: string): string {
   const notes = session.abilityNotes(rowId);
   if (!notes.length) return "";
-  return `<div class="ability-live-notes">${notes
+  return `<div class="ability-live-notes">${groupNotes(notes)
     .map(
-      (n) =>
+      (g) =>
         `<p class="ability-note-line${
-          n.reason === "unresolved-dc" ? " urgent" : ""
-        }">${escapeHtml(n.detail)}</p>`
+          g.reason === "unresolved-dc" ? " urgent" : ""
+        }">${escapeHtml(
+          g.subjects.length ? `${g.subjects.join(" ")} ` : ""
+        )}${escapeHtml(g.explanation)}</p>`
     )
     .join("")}</div>`;
+}
+
+/**
+ * The damage rows, with each distinct suggestion stated once below them.
+ *
+ * Every term keeps its own control, because every term is a separate choice.
+ * What is shared is the reasoning, and repeating it per row turned one honest
+ * paragraph into a wall of nine.
+ */
+function abilityDamageGroup(id: string, damage: readonly AbilityDamageField[]): string {
+  if (!damage.length) return "";
+
+  const rows = damage.map((d) => abilityDamageRow(id, d)).join("");
+
+  // "Chosen" is the same test the row makes: the expression already equals one
+  // of the offered figures, so the suggestion has been acted on and explaining
+  // it again is noise.
+  const reasons = new Set<string>();
+  for (const d of damage) {
+    const chosen = d.options.some((o) => o.expr === d.expr);
+    if (d.suggestion && !chosen) reasons.add(d.suggestion);
+  }
+  const why = [...reasons]
+    .map((r) => `<p class="ability-note-line ability-damage-why">${escapeHtml(r)}</p>`)
+    .join("");
+
+  return `<div class="ability-damages">${rows}${why}</div>`;
 }
 
 function abilityForm(session: EditSession, row: AbilityRow): string {
@@ -490,13 +561,7 @@ function abilityForm(session: EditSession, row: AbilityRow): string {
       </label>
 
       ${dcs.length ? `<div class="ability-dcs">${dcs.map((d) => abilityDCRow(id, d)).join("")}</div>` : ""}
-      ${
-        damage.length
-          ? `<div class="ability-damages">${damage
-              .map((d) => abilityDamageRow(id, d))
-              .join("")}</div>`
-          : ""
-      }
+      ${abilityDamageGroup(id, damage)}
       ${renderLiveNotes(session, id)}
 
       <label class="ability-form-row grow">
@@ -647,6 +712,9 @@ function embeddedAbilityRow(entry: EmbeddedAbilityEntry, index: number): string 
         : entry.actionType;
   const level = entry.creature.level === null ? "?" : String(entry.creature.level);
   const also = entry.sources > 1 ? `on ${entry.sources} creatures` : "";
+  // What it does earns the wide column; the traits are visible the moment it is
+  // copied, and "on 785 creatures" is a footnote rather than a reason to pick.
+  const summary = entry.summary || entry.traits.slice(0, 3).join(", ");
 
   // Five children, matching the grid. A sixth wraps to a new implicit row and
   // takes the button with it, so the count lives inside the source cell.
@@ -654,7 +722,7 @@ function embeddedAbilityRow(entry: EmbeddedAbilityEntry, index: number): string 
     <li class="ability-result embedded" data-embedded="${index}">
       <span class="ability-cost">${escapeHtml(cost)}</span>
       <span class="ability-name">${escapeHtml(entry.name)}</span>
-      <span class="ability-traits">${escapeHtml(entry.traits.slice(0, 3).join(", "))}</span>
+      <span class="ability-summary" title="${escapeHtml(summary)}">${escapeHtml(summary)}</span>
       <span class="ability-source">${escapeHtml(entry.creature.name)} &middot; Creature ${escapeHtml(
         level
       )}${also ? `<span class="muted"> &middot; ${escapeHtml(also)}</span>` : ""}</span>

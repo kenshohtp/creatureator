@@ -58,18 +58,10 @@ Nothing in scope goes in an issue; nothing out of scope goes here.
 Genuinely open, nothing else. Items are moved out when they close — leaving them here
 marked Done is how a list stops being read.
 
-### Improve the module's own search
-**Open, and next.** The chassis picker matches creature names by substring, and the
-ability panel searches only the 1,414 standalone compendium items. Neither can see the
-~33,000 abilities embedded in the creatures you already own, which §7.9 established is
-the largest ability collection available anywhere — five times what AoN indexes.
-
-This is the thing an AoN search feature would have been standing in for, and it is
-cheaper: it works offline, has no CORS dependency or rate limit, and can see homebrew
-and premium-module content AoN cannot.
-
-**Verify:** searching a trait or a partial name surfaces relevant abilities from
-embedded creature items, ranked, without loading every actor up front.
+### Tidy the damage-type string in previews
+**Open, cosmetic.** A preview reads "2d8 persistent,fire damage" because that is how
+PF2e stores the type. "persistent fire" would read better. One `replace` in
+`inlineToText`, whenever it irritates someone enough.
 
 ### Cut 0.1.1
 **Open, small.** The released artifact predates today's fixes and declares
@@ -119,6 +111,29 @@ creature is shared with someone lacking the source.
 ## Done
 
 Completed work, kept for the reasoning rather than the tick.
+
+### Search every creature's abilities
+**Done 23 Aug.** The ability panel's "From another creature" tab now searches all
+**11,470** distinct abilities embedded across your creatures, not just the 1,414
+standalone compendium items — an eight-fold increase, and the largest ability
+collection available anywhere (§7.9).
+
+The premise it was blocked on turned out to be false. `ability-index.ts` had claimed
+for months that reaching the embedded pool meant loading every actor, "which takes
+minutes". It does — about sixty seconds — but `getIndex({fields: [...]})` returns
+embedded items outright in **2.0 seconds**, and constructs no documents, so it raises
+none of PF2e's pre-remaster warnings either. Nobody had measured it.
+
+How it behaves: the index builds lazily on the first keystroke, so opening the picker
+still costs nothing. `Grab` collapses from 785 instances to one row, showing the
+creature **nearest your target level** — the copy whose DCs need least rescaling —
+with "on 785 creatures" as a footnote. Each row previews what the ability does, with
+`@Template`/`@Damage`/`@Check` spoken as English and `@Localize` keys resolved.
+
+Four bugs found by looking at it rather than by tests: six children in a five-column
+grid; `fields: ["items"]` returning a `system` object without `actionType` or
+`traits`, so everything read as passive; note grouping fixed in one of two renderers;
+and inline elements leaking raw into the previews.
 
 ### Install 0.1.0 from its manifest URL into a real Foundry
 **Done, 23 Aug.** Installed from the manifest URL and loaded cleanly: the
