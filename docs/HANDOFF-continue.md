@@ -4,7 +4,7 @@
 needed to resolve the open issues and continue building, without re-deriving
 decisions or re-discovering data.
 
-Last updated: 22 Aug 2026, at commit `c12bfb1`.
+Last updated: 22 Aug 2026, at commit `c96b491`.
 
 ---
 
@@ -84,15 +84,15 @@ is needed. A *server* restart is only needed when adding a new module.
 | Actor creation | Verified in Foundry: rule elements, MAP progression, immunities, actions all survive. |
 | **Editor** | Verified in Foundry by screenshot. Every number editable, band re-derived live, one-click band override, HP and weaknesses as one block, rename, create on confirmation. |
 | **Ability DCs** | 2,437 save DCs from 2,131 creatures: 70.0% land exactly on a Table 2-11 column, 98.6% within 2. Flat checks proven level-independent. |
-| **Ability grafting** | Search 1,300 shared ability items, attach, rescale the DCs inside, strip legacy alignment traits. UI verified by render; **not yet verified in a live Foundry session.** |
+| **Ability grafting** | Verified live: Dragon Breath copied onto a husk zombie, DC repaired, ability usable from the sheet. Two sources — 1,414 shared ability items, and any creature's own abilities. |
+| **Ability editing** | Name, action cost, traits, description and the save DCs inside the text, all editable in place. Blank abilities can be written from scratch. |
+| **The reference creature** | **Built end to end in a live world.** Occam's Risen Kinetic Husk: AC 22, HP 75, weaknesses dropped, renamed, with a hand-written `Bound to Occam`. |
 
 ### What does NOT exist
 
-- **The other two authoring routes.** Grafting covers "copy from a compendium".
-  Typing an ability by hand and having an LLM draft one are both unbuilt (7).
-- **Copy from another creature.** The ~30,000 abilities embedded in bestiary
-  creatures are not reachable from the attach panel; only the ~1,300 in shared
-  Item packs are. Indexing the rest means loading every actor.
+- **AoN as an ability source.** Two of the three authoring routes are built —
+  copy from a compendium or another creature, and write one by hand. Fetching an
+  ability's text from Archives of Nethys is not.
 - **Ability damage scaling.** Measured against both candidate tables and neither
   fits (13.8% / 9.3%). Surfaced and left alone deliberately.
 - **LLM anything.** Still deliberately deferred; see 7.

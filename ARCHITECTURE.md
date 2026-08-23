@@ -429,6 +429,35 @@ re-running the probe with `traits` and `@Template` presence retained.
 Implemented in `src/scaling/rescale-ability.ts`. Every number left alone is
 reported as a note with its reason; nothing is silent.
 
+#### A save can have no DC at all — `against:` and DC 0
+
+Found by copying Dragon Breath onto a husk zombie in a live world: the sheet
+rendered **"DC 0 Basic Reflex"**. The ability's text is
+
+```
+@Check[reflex|basic|against:class-spell|options:area-effect]
+```
+
+There is no `dc:` parameter. `against:` names a statistic on whoever owns the
+ability — here "the higher of class DC or spell DC" — and a creature has
+neither, so PF2e resolves it to zero.
+
+Two consequences, both now handled:
+
+- **Refusing to rescale it is right; refusing silently is not.** A save nobody
+  can fail is worse than a save at the wrong number, because nothing on the
+  sheet says anything is wrong. The DC is surfaced as an editable field with a
+  red "DC 0 on a creature" chip and the bands for the target level.
+- **Repairing it means inserting, not replacing.** The first fix only replaced
+  an existing `dc:` parameter, so on this ability it silently did nothing.
+  Setting a DC now inserts `dc:N` *and* removes `against:`, because leaving the
+  reference beside the number is ambiguous at best. A check carrying both a real
+  `dc:` and an `against:` keeps its `against:` — that is a rescale, not a repair.
+
+Adjacent finding: `@Damage[(@actor.level)d6[untyped]]` resolves correctly on any
+actor, so level-scaling damage in a copied ability needs nothing done to it.
+Verified on the sheet: 5d6 on a level 5 creature.
+
 #### Legacy alignment traits break a graft
 
 Loading actors from pre-remaster adventure paths makes PF2e log
