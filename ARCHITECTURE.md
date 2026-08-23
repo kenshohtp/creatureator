@@ -846,7 +846,7 @@ Remaining follow-ups, neither blocking:
   degrade gracefully to compendium-only results when the endpoint is unreachable,
   rather than erroring the whole builder.
 
-### 7.3 Damage re-expression — LARGELY RESOLVED
+### 7.3 Damage re-expression — RESOLVED
 
 Original concern: rescaling `2d8+6` would mean solving for a dice expression whose
 mean hits a target average.
@@ -861,6 +861,34 @@ doesn't (say `1d12` where the band says `2d8`), do we adopt the table's expressi
 preserve the chassis's die size and adjust count/modifier to match the average?
 Proposal: preserve chassis die size — a creature whose identity is "big d12 club"
 should stay that, and matching the published average keeps it legal either way.
+That is what `expressForAverage` does: it adopts the table's dice *count* and solves
+for the flat modifier, keeping the chassis's faces.
+
+**Measured 23 Aug 2026, and the residual worry was unfounded.**
+`tools/probe-strike-shapes.mjs` harvested 12,529 published NPC Strikes off the local
+packs, each paired with its creature's level. Two things came out of it.
+
+First, the share of a Strike's average contributed by dice rather than by the flat
+modifier is **not** constant across die sizes. Published creatures lean on the
+modifier exactly as this re-expression does, and lean harder the smaller the die:
+
+| die | L0-3 | L4-7 | L8-11 | L12-15 | L16+ |
+|---|---|---|---|---|---|
+| d4 | 56% | 33% | 31% | 33% | 37% |
+| d6 | 64% | 47% | 44% | 45% | 44% |
+| d8 | 60% | 53% | 50% | 51% | 50% |
+| d10 | 58% | 58% | 52% | 56% | 52% |
+| d12 | 62% | 57% | 57% | 58% | 57% |
+
+Second, the specific output that prompted the concern is itself in print. Of 326 d4
+Strikes at levels 8-12, `2d4+8` is the modal shape with 27 uses — and `2d4+10`, the
+figure that looked wrong, occurs 10 times. `2d4+11` occurs 17 times, `2d4+13` eleven,
+`2d4+12` eight; 116 of the 326 carry a modifier of +10 or more. The dice count of 2
+that the engine produces is also the published median for d4 at that level.
+
+So `1d4+3 → 2d4+10` is idiomatic rather than a wart. The old note that "published
+equivalents sit near `2d4+8`" was true only in the sense that `2d4+8` leads a wide and
+well-populated spread. No change made; the question is closed.
 
 ---
 

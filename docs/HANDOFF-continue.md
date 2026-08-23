@@ -268,12 +268,15 @@ bridge may not be visible to a `git add -A` running a second later, and a file
 Windows has deleted may still appear in a bridge listing. Verify with a command
 run on Windows when it matters.
 
-### 6.6 Cosmetic
+### 6.6 Cosmetic — the damage-shape item is CLOSED
 
-- `1d4+3 → 2d4+10` — preserving a d4 chassis means the flat modifier carries the
-  growth. Documented trade in ARCHITECTURE.md §7.3 (creature identity over
-  idiomatic dice), but a
-  level-10 dagger NPC looks odd. Published equivalents sit near `2d4+8`.
+- **`1d4+3 → 2d4+10` was measured on 23 Aug and is not a defect.** `2d4+10` occurs
+  10 times in published creatures at levels 8-12, and 116 of 326 d4 Strikes in that
+  band carry a modifier of +10 or more; published creatures lean on the flat modifier
+  for small dice exactly as the re-expression does. The old claim that "published
+  equivalents sit near `2d4+8`" was true only in that `2d4+8` leads a wide spread.
+  Numbers and method in ARCHITECTURE.md §7.3. Reproduce with
+  `node tools/probe-strike-shapes.mjs <packs-root> --faces 4 --levels 8-12`.
 - Riders are never scaled. 59 of 71 sampled are uncategorised energy dice, so scaling
   them later would be easy if the decision changes.
 
@@ -559,6 +562,7 @@ tools/
   probe-ability-numbers.js    harvests DCs and damage with creature levels
   probe-area-frequency.js     Table 2-12 column signals: frequency, prose recharge
   read-pack.mjs               read a Foundry LevelDB pack off disk, no Foundry needed
+  probe-strike-shapes.mjs     how published creatures shape Strike damage (§7.3)
   setup-github-mcp.ps1/.sh    see 6.5; do not expect them to work
   restore-mcp-servers.ps1     recovery for the BOM incident
 docs/
@@ -707,4 +711,3 @@ ability damage — now true only for non-area damage, and worded per case.
    98.3% of AoN's creatures. Text import is the fallback that fires on 1.7% and
    can be deferred indefinitely.
 3. **LLM drafting** — still last, and the rules engine ships useful without it.
-4. **Cosmetic** (§6.6) — the `1d4+3 → 2d4+10` shape, if it ever bothers anyone.

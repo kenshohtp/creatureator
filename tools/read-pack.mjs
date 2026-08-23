@@ -161,14 +161,35 @@ function* sstRecords(path) {
   }
 }
 
-/** Every document in a pack, keyed by its LevelDB key. Later writes win. */
+/** LevelDB internal keys carry an 8-byte trailer; the user key is what precedes it. */
+const INTERNAL_KEY_TRAILER = 8;
+
+/**
+ * Every document in a pack, keyed by its Foundry document key. Later writes win.
+ *
+ * The 8-byte LevelDB trailer is stripped. Keys inside a data block are *internal*
+ * keys: the user key followed by a fixed 8-byte suffix holding a 1-byte value type
+ * and a 7-byte sequence number. Printed to a terminal that suffix looks like
+ * trailing whitespace — `!actors!0PrrwvV1936eSCQy······` — which is a trap twice
+ * over. `trimEnd()` does not remove it, because the bytes are `0x01 0x01 0x00…`
+ * rather than spaces; and when a sequence byte happens to fall in the printable
+ * range it reads as a real character, so `!actors.items!<actor>.<item>` appears to
+ * carry a 17-character item id where Foundry only ever issues 16.
+ *
+ * Left on, it breaks any join between a creature and its embedded items: the actor
+ * id captured from an `!actors!` key carries a different trailer from the same id
+ * captured out of the middle of an `!actors.items!` key, so the two never compare
+ * equal and the join silently yields nothing. That cost two debugging rounds the
+ * first time this tool was used for real.
+ */
 export function readPack(packDir) {
   const docs = new Map();
   for (const fn of readdirSync(packDir).sort()) {
     if (!fn.endsWith(".ldb")) continue;
     for (const [key, value] of sstRecords(join(packDir, fn))) {
-      if (!value.length) continue;
-      try { docs.set(key.toString("utf8"), JSON.parse(value.toString("utf8"))); }
+      if (!value.length || key.length <= INTERNAL_KEY_TRAILER) continue;
+      const userKey = key.subarray(0, key.length - INTERNAL_KEY_TRAILER).toString("utf8");
+      try { docs.set(userKey, JSON.parse(value.toString("utf8"))); }
       catch { /* not a document record */ }
     }
   }
@@ -253,4 +274,9 @@ function main(argv) {
 // file:///C:/Projects/.../read-pack.mjs, so the comparison fails, main() never
 // runs, and the process exits 0 having printed nothing. pathToFileURL is the
 // only form that agrees on both platforms.
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main(process.argv.slice(2));
+// argv[1] is undefined under `node -e`, and pathToFileURL throws on undefined,
+// so importing this module from such a context would crash before the caller
+// got a chance to use it. Guard the guard.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main(process.argv.slice(2));
+}
