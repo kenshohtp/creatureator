@@ -4,12 +4,23 @@
 needed to resolve the open issues and continue building, without re-deriving
 decisions or re-discovering data.
 
-Last updated: 23 Aug 2026, against commit `b65f6ee`.
+Last updated: 23 Aug 2026, against commit `be6955f`.
 
-**Read §8's note on drift first.** The 22 Aug revision of this file said two
-built features were not built. Every "not built" claim below has been checked
-against the repo as of `b65f6ee`; claims about what *works* have not been
-re-verified beyond what §3 already records.
+**Read §8's note on drift first.** The 22 Aug revision of this file said two built
+features were not built, and named a cosmetic defect that measurement later showed
+was not one. As of this revision:
+
+- Every "not built" claim below has been checked against the code.
+- §3's table has been re-verified by running `npm run check` — 338 tests, 14 files,
+  and the classifier scoreboard, all reconciled against real output rather than
+  taken on trust.
+- The ORC notice wording, the AoN coverage gap and the Strike-damage shapes have
+  each been measured against a primary source, with method recorded so the numbers
+  can be reproduced rather than believed.
+
+What has *not* been re-verified is the live-in-Foundry half of §3 — the rows saying
+something was confirmed by screenshot or by building a creature in a real world.
+Those still rest on an earlier session having looked at a screen.
 
 ---
 
