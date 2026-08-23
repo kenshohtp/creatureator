@@ -4,7 +4,7 @@
 needed to resolve the open issues and continue building, without re-deriving
 decisions or re-discovering data.
 
-Last updated: 22 Aug 2026, at commit `c96b491`.
+Last updated: 22 Aug 2026, at commit `176c1b3` — **pushed to GitHub**.
 
 ---
 
@@ -69,7 +69,7 @@ is needed. A *server* restart is only needed when adding a new module.
 
 ## 3. Current state
 
-**279 tests passing**, no `describe.todo` left. 14 test files.
+**314 tests passing**, no `describe.todo` left. 14 test files.
 
 ### What works, and how it was verified
 
@@ -86,6 +86,7 @@ is needed. A *server* restart is only needed when adding a new module.
 | **Ability DCs** | 2,437 save DCs from 2,131 creatures: 70.0% land exactly on a Table 2-11 column, 98.6% within 2. Flat checks proven level-independent. |
 | **Ability grafting** | Verified live: Dragon Breath copied onto a husk zombie, DC repaired, ability usable from the sheet. Two sources — 1,414 shared ability items, and any creature's own abilities. |
 | **Ability editing** | Name, action cost, traits, description and the save DCs inside the text, all editable in place. Blank abilities can be written from scratch. |
+| **Inline element parsing** | `@Check` / `@Damage` / `@Template`, including nested brackets, trailing `\|options:` parameters, and `against:` DC references. 31 tests, every fixture string real. |
 | **The reference creature** | **Built end to end in a live world.** Occam's Risen Kinetic Husk: AC 22, HP 75, weaknesses dropped, renamed, with a hand-written `Bound to Occam`. |
 
 ### What does NOT exist
@@ -206,18 +207,37 @@ tables in `src/data/creature-tables.ts` are Open Game Content and the ORC Licens
 requires a specific verbatim notice. **Verify against <https://paizo.com/orclicense>
 before publishing anything.** Not urgent at pre-alpha; do not let it ship unchecked.
 
-### 6.5 GitHub push access — abandoned, cause unknown
+### 6.5 GitHub — Dan pushes; Claude still cannot
 
-Claude cannot push. The sandbox proxy blocks git to github.com (403 on CONNECT), there
-is no GitHub connector in the Anthropic registry, and GitHub's remote MCP endpoint
-needs OAuth that Claude Desktop does not support.
+**The repo is current.** `main` is pushed through `176c1b3`, including the
+rewritten README with screenshots. Dan runs `git push origin main` himself and
+it works.
 
-A local MCP binary was installed and never became visible in Cowork. **The MCP server
-logs at `%APPDATA%\Claude\logs\mcp-server-*.log` were never read** — start there if
-revisiting. Along the way a UTF-8 BOM bug destroyed Dan's `aon` MCP server entry; it
-was restored from backup. See the status banner in `docs/DEV-SETUP.md`.
+Claude still has no path to GitHub from the sandbox:
 
-**Current workflow: Dan runs git himself.** It works. Give him exact commands.
+- `api.github.com` answers *"GitHub access to this repository is not enabled for
+  this session. Use `add_repo` to request access."* — but **no `add_repo` tool is
+  exposed** in this Cowork session, and the MCP registry lists no GitHub
+  connector reaching it. Connecting a GitHub connector on claude.ai did not
+  surface tools here.
+- `github.com` is not fetchable by the web tool either (robots.txt).
+
+So the previous diagnosis ("cause unknown, try the MCP logs") is superseded:
+there **is** a supported mechanism (`add_repo`, per the sandbox proxy's own error
+message and the Claude Code GitHub-actions docs), it is simply not available in
+this session type. If push access matters, that is the thread to pull — not the
+local MCP binary, which was a dead end.
+
+**A trap worth knowing.** Do not run `git status` through the device bridge
+without `--no-optional-locks`: it writes `.git/index.lock`, the bridge cannot
+delete it, and Dan's next commit fails with "Another git process seems to be
+running". This happened once and cost a round trip. Read state with
+`git --no-optional-locks status --porcelain` or read `.git/refs` directly.
+
+Also: the bridge's view of the repo can lag Windows. A file written through the
+bridge may not be visible to a `git add -A` running a second later, and a file
+Windows has deleted may still appear in a bridge listing. Verify with a command
+run on Windows when it matters.
 
 ### 6.6 Cosmetic
 
@@ -264,6 +284,25 @@ files — extract to a temp directory and `cat` each file into place instead.
 
 Never run `git status` through the bridge without `--no-optional-locks`: it
 writes `.git/index.lock` and cannot remove it, which blocks Dan's next commit.
+
+### 6.9 Claude cannot run the real test suite
+
+The sandbox's npm registry is blocked — `npm install` fails on every package —
+so Claude cannot install vitest, vite or typescript in its own workspace.
+
+What worked all session, and is set up in `~/work/creatureator` in a fresh
+sandbox if recreated:
+
+- A hand-written **vitest-compatible shim** (`describe`, `it`, `expect`,
+  `it.each`, `describe.skipIf`, the matchers this suite uses) dropped in as
+  `node_modules/vitest`, run through `tsx`, which is available globally.
+- `tsc` 6.0.3 is available globally, so typechecking is real. `@types/node` is
+  symlinked from `/opt/node-tools`.
+- Ignore `TS7006` errors from the shim's `any` signatures; everything else is a
+  real type error.
+
+**Dan's `npm run check` is the authoritative gate.** The shim agrees with it in
+every case seen, but it is a stand-in.
 
 ## 7. What comes next
 
@@ -386,19 +425,78 @@ their reasoning. Read §3 (layers), §7.5 (band drift), §7.6 (bestiary findings
 
 ---
 
+## 9a. IN FLIGHT — the next build, fully specified
+
+**Offer Table 2-12 figures for area damage.** Designed and measured, not built.
+Everything needed is in the repo; no further probing required.
+
+### Why
+
+Ability damage is not rescaled automatically and should not be — see
+ARCHITECTURE.md §7.6 for the measurement. But for the third of ability damage
+that carries `options:area-damage`, Table 2-12 (Area Damage) is demonstrably the
+relevant table: area abilities land on one of its two columns 30.5% of the time
+against 10.5% for the Strike table. That is not good enough to move a number on
+someone's behalf, and it is far too good to keep saying "no table governs this".
+
+### What to build
+
+In `src/editor/edit-session.ts`, mirroring `abilityDCs()`:
+
+```ts
+export interface AbilityDamageField {
+  index: number;          // position among inline elements
+  termIndex: number;      // position among that element's terms
+  expr: string;           // "7d8"
+  damageType: string | null;
+  isArea: boolean;        // from damageParameters() containing "options:area-damage"
+  average: number | null;
+  options: { key: "unlimited use" | "limited use"; expr: string; average: number }[];
+}
+
+abilityDamage(rowId: string): AbilityDamageField[]
+setAbilityDamage(rowId, inlineIndex, termIndex, expr): boolean
+```
+
+- `options` only for `isArea` fields. Build them from `rowFor("areaDamage", level)`
+  — the cells are `"2d10 (12)"`, so `parseCellOrNull` gives both expression and
+  average. Preserve the chassis die size the same way Strike damage does, via
+  `rescaleDamageFormula(current, targetAverage, tableExpression)`.
+- `damageParameters()` in `src/pf2e/inline.ts` already extracts the parameter
+  list; `withDamageTerm()` already rewrites one term while preserving parameters
+  and labels.
+- Non-area damage gets **no options** — surfaced and explained, exactly as now.
+
+In `src/foundry/editor-view.ts`, render these beside the existing DC fields in
+`abilityForm()`: expression, damage type, and for area damage a select offering
+"Unlimited use 5d6 (18)" / "Limited use 10d6 (35)" for the target level. Label
+the two columns explicitly; which one applies depends on the ability's
+**Frequency**, which the module does not know, so the user chooses.
+
+In `src/foundry/picker.ts`, wire it in `#activateAbilityForm` alongside the
+`ability-dc-input` / `ability-dc-band` handlers.
+
+### Tests to write
+
+- An area term offers two options; a non-area term offers none.
+- Picking one rewrites only that term, keeping `|options:area-damage` and any
+  `{label}`.
+- The chassis die size survives: a d8 ability offered a d6 table figure comes
+  back as a d8 expression.
+- A flat area amount (`@Damage[20[force]|options:area-damage]`) is still left
+  alone.
+
+---
+
 ## 10. Suggested first move
 
-Grafting works but has never been exercised in a live session. Before building
-anything else: open the builder, pick a chassis, search the Abilities panel,
-attach something, and create the creature. Two specific unknowns:
+Build §9a. It is specified to the function signature and needs no new data.
 
-1. **Index build time** on an install with all the premium modules. It runs in
-   the background and the panel says "Reading your compendia…", but nobody has
-   watched it against 25 Item packs including a 6,283-entry feat compendium.
-2. **Whether the detail lines read as useful or as clutter** at real width. Each
-   ability shows what moved and everything deliberately left alone, which is
-   correct by the project's rules and might still be too much on screen at once.
+After that, in rough order of value:
 
-After that, the remaining product is the other two authoring routes — type it by
-hand, and have an LLM draft it — plus "copy an ability from another creature",
-which reuses the chassis picker rather than the ability index.
+1. **Archives of Nethys as a third ability source** — fetch text, build an item.
+   Widest coverage, most parsing risk. AoN's Elasticsearch allows CORS from a
+   Foundry origin (§5).
+2. **ORC attribution** (§6.4, NOTICE.md) — blocks any public release. Dan owns
+   the primary source; it is one copied line, not research.
+3. **LLM drafting** — still last, and the rules engine ships useful without it.
