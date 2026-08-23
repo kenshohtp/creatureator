@@ -97,6 +97,28 @@ export function readFrequency(item: Record<string, any>): AbilityFrequency | nul
   };
 }
 
+/**
+ * A recharge written into the ability's prose rather than into a field.
+ *
+ * "It can't use Breath Weapon again for 1d4 rounds." PF2e does not record this
+ * anywhere structured - a black dragon's Breath Weapon has no
+ * `system.frequency` at all - so the only way to see it is to read the text.
+ *
+ * That is worth doing because of what carries it. Of 283 area-damage terms
+ * matched across the bestiary, the abilities are 55 Breath Weapons, 9 Dragon
+ * Breaths, and a long tail of Hellfire, Poison, Pyre and Pyroclastic Breaths:
+ * effectively the whole population of "big burst, then wait". See
+ * `areaColumnFor` for what that predicts.
+ *
+ * The apostrophe arrives as a literal, a curly quote, or an HTML entity
+ * depending on which book the creature came from, so all three are allowed for.
+ */
+const PROSE_RECHARGE = /can(?:'|\u2019|&#39;|&rsquo;)?t use[^.]{0,120}again for/i;
+
+export function hasProseRecharge(text: string): boolean {
+  return PROSE_RECHARGE.test(text);
+}
+
 /** "⬻⬻", "reaction", "free action", "passive" — how the cost reads on a sheet. */
 export function actionCostLabel(ability: AbilityItem): string {
   switch (ability.actionType) {

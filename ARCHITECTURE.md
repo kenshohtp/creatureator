@@ -527,6 +527,59 @@ Three readings, in order of how much they cost to learn:
 Coverage of the surviving rule is **129 of 875 terms, about 15%**. The other
 85% keep asking, which is the answer rather than a gap.
 
+#### The marker is not frequency, it is what kind of ability it is
+
+The frequency rule above was built, and then a live sheet broke its framing. A
+black dragon's Breath Weapon ends *"It can't use Breath Weapon again for 1d4
+rounds"* — a recharge in **prose**, with no `system.frequency` at all. The
+archetypal area ability was in the 80% the rule could not see.
+
+Re-measured on the same 875 terms, splitting the no-frequency group by whether
+the text carries a recharge:
+
+| marker | n | nearer Limited | exact Unlimited | exact Limited | mean off Unl. | mean off Lim. |
+|---|---|---|---|---|---|---|
+| `per: "round"` | 129 | **5.4%** | 14.7% | 0.0% | −3.5 | −19.9 |
+| **prose recharge** | 283 | **77.0%** | 2.1% | 20.1% | +16.6 | −7.8 |
+| neither | 414 | 25.8% | 6.5% | 3.6% | +2.1 | −17.2 |
+| `per: "day"` | 32 | 37.5% | 6.3% | 6.3% | +7.3 | −15.4 |
+
+**The two markers point in opposite directions**, and the earlier 46.6%
+"coin flip" for the no-frequency group was these two populations mixed together.
+Separating them leaves a genuine no-signal group of 414 at 25.8%.
+
+Listing what is actually in each group explains it, and the explanation is not
+about frequency at all:
+
+- `per: "round"` — Harvest the Wicked, Clash of Steel, Claw and Trident, Fire
+  Shortbows!, Frenzied Hatchets, Brandish Bayonets!, Shambling Onslaught. **Troop
+  routines**, 37 distinct abilities. Things that happen every round, which is
+  what Unlimited Use describes.
+- prose recharge — 55× Breath Weapon, 9× Dragon Breath, then Hellfire, Poison,
+  Nidorous, Pyre, Pyroclastic, Crushing, Ravenous. **Breath weapons**, 105
+  distinct abilities. Big burst then wait, which is what Limited Use describes.
+
+So the markers are proxies for *ability archetype*, not for frequency. That
+matters because the first explanation on record here — "a recharge is at-will
+over an encounter, so it means Unlimited Use" — was plausible, matched the
+`per: "round"` numbers exactly, and was wrong: it predicts prose recharges are
+unlimited too, and they are the most Limited-leaning group in the sample. It had
+already been committed as a code comment before the second measurement caught
+it. **A correlation that comes with a satisfying story is still just a
+correlation.**
+
+Both rules are implemented in `areaColumnFor()`; coverage is 412 of 875 terms,
+about 47%. Two refusals stand: `per: "day"` (n=32, unsupported and the intuitive
+answer) and the 414-term "neither" group, which leans Unlimited only weakly and
+is 47% of all area damage — suggesting on it would put a soft guess in front of
+nearly every user and make the two strong suggestions look like more of the same.
+
+One implementation detail worth not losing: the prose rule fires only when there
+is **no frequency field at all**, not merely when the frequency is not `round`.
+That is the population the 77% was measured on — the probe bucketed anything
+carrying a frequency separately — so widening the guard would apply a measured
+number to rows it was never measured over.
+
 **A suggestion is not a selection.** The dropdown shows
 `Suggested: Unlimited use — 2d8+3 (12)` as a *disabled* placeholder and marks
 the matching option `· suggested`; the damage is not rewritten until the user

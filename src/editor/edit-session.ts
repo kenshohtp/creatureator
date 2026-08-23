@@ -38,6 +38,7 @@ import {
 } from "../pf2e/npc.js";
 import {
   graftAbility,
+  hasProseRecharge,
   readAbility,
   readFrequency,
   type ActionType,
@@ -81,42 +82,80 @@ import {
 } from "../pf2e/paths.js";
 
 /**
- * Which Table 2-12 column an ability's own Frequency argues for.
+ * Which Table 2-12 column an ability's own markers argue for.
  *
- * Measured, not reasoned about, and the measurement overturned the obvious
- * answer. Across 875 area-damage terms harvested from 2,131 published
+ * Measured rather than reasoned about, twice, because reasoning got it wrong
+ * both times. Across 875 area-damage terms harvested from 2,131 published
  * creatures (`tools/probe-area-frequency.js`, PF2e 8.4.0):
  *
- *   - **`per: "round"` means Unlimited Use.** n=129: only 5.4% sit nearer the
- *     Limited column, *none at all* land exactly on it, and the mean sits 3.5
- *     below the Unlimited column. A once-per-round limit is a recharge, and
- *     over an encounter a recharge is at-will - which is what the column means.
- *   - **`per: "day"` means nothing.** n=32, 37.5% nearer Limited, which is
- *     *lower* than the 46.6% of abilities carrying no frequency at all. The
- *     intuitive rule - a once-per-day ability is a limited-use ability - is
- *     not what Paizo's numbers do. Building it without measuring would have put
- *     a confidently wrong default on exactly the abilities a GM would most
- *     expect to be right.
- *   - **Everything else is too small to speak.** `PT1M` n=8, `PT1H` n=5,
- *     `PT10M` n=4. The 100% on four rows is not a finding.
- *   - **80% of area abilities carry no frequency**, and those are a coin flip
- *     at 46.6%. No default is available for them and none is invented.
+ * | marker | n | nearer Limited | exact on Limited |
+ * |---|---|---|---|
+ * | `per: "round"` | 129 | 5.4% | 0.0% |
+ * | prose recharge, no frequency | 283 | 77.0% | 20.1% |
+ * | neither | 414 | 25.8% | 3.6% |
+ * | `per: "day"` | 32 | 37.5% | 6.3% |
  *
- * So exactly one rule survives, covering about 15% of area damage. The rest
- * keeps asking, which is the right answer rather than a missing feature.
+ * **The two markers point in opposite directions, and the ability names say
+ * why.** `per: "round"` is troops - Harvest the Wicked, Clash of Steel, Fire
+ * Shortbows!, Frenzied Hatchets - routines that fire every round, which is what
+ * Unlimited Use describes. A prose recharge is breath weapons: 55 Breath
+ * Weapons, 9 Dragon Breaths, and a tail of Hellfire, Poison and Pyroclastic
+ * Breaths, which is what Limited Use describes. The marker is not really
+ * telling us about frequency at all; it is telling us what kind of ability it
+ * is, and those two kinds sit on different columns.
+ *
+ * This replaced an earlier explanation - "a recharge is at-will over an
+ * encounter, so it means Unlimited Use" - that was plausible, matched the
+ * `per: "round"` numbers, and was wrong: it predicts prose recharges are
+ * unlimited too, and they are the most limited group in the sample.
+ *
+ * Two rules therefore, and two deliberate refusals:
+ *
+ *   - **`per: "day"` is refused.** The intuitive rule, and unsupported: 37.5%
+ *     nearer Limited is *lower* than the 25.8% baseline points the other way,
+ *     and n=32 besides.
+ *   - **"neither" is refused.** It leans Unlimited (25.8% nearer Limited) but
+ *     only weakly, and it is 47% of all area damage. Suggesting on it would put
+ *     a soft guess in front of nearly every user while making the two strong
+ *     suggestions look like more of the same.
+ *
+ * Coverage of the two rules is 412 of 875 terms, about 47%.
  */
 export function areaColumnFor(
-  frequency: { per: string | null } | null
+  frequency: { per: string | null } | null,
+  text: string
 ): { key: AreaDamageColumn; why: string } | null {
-  if (frequency?.per !== "round") return null;
-  return {
-    key: "unlimited use",
-    why:
-      "Recharges every round, and a recharge is at-will over an encounter. " +
-      "Of 129 published once-per-round area terms, 5.4% sit nearer Limited " +
-      "Use and none land on it exactly - so Unlimited Use is suggested. " +
-      "Nothing is changed until you pick it.",
-  };
+  if (frequency?.per === "round") {
+    return {
+      key: "unlimited use",
+      why:
+        "Fires once per round. Published once-per-round area attacks are troop " +
+        "routines - Clash of Steel, Fire Shortbows! - and of 129 such terms, " +
+        "5.4% sit nearer Limited Use and none land on it exactly. Suggested " +
+        "only; nothing changes until you pick it.",
+    };
+  }
+
+  /**
+   * Deliberately "no frequency at all" rather than "not once per round".
+   *
+   * That is the population the 77% was measured on: the probe put anything
+   * carrying a `frequency` into its own bucket, so an ability with both a
+   * `per: "day"` field and a recharge in its text was never counted here.
+   * Widening the guard would apply a number to rows it was not measured over.
+   */
+  if (frequency === null && hasProseRecharge(text)) {
+    return {
+      key: "limited use",
+      why:
+        "Recharges in its text, the way breath weapons are written. Of 283 " +
+        "such terms - 55 Breath Weapons, 9 Dragon Breaths and a long tail - " +
+        "77.0% sit nearer Limited Use and 20.1% land on it exactly. Suggested " +
+        "only; nothing changes until you pick it.",
+    };
+  }
+
+  return null;
 }
 
 export type DefenceKind = "weakness" | "resistance";
@@ -828,7 +867,7 @@ export class EditSession {
   abilityDamage(rowId: string): AbilityDamageField[] {
     const text = this.abilityText(rowId);
     const item = this.#abilityItem(rowId);
-    const suggestion = item ? areaColumnFor(readFrequency(item)) : null;
+    const suggestion = item ? areaColumnFor(readFrequency(item), text) : null;
     const out: AbilityDamageField[] = [];
 
     findInlines(text).forEach((inline, index) => {

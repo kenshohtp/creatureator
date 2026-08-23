@@ -538,27 +538,62 @@ describe("area damage", () => {
    * second of those is the one worth a test: it is the rule anyone would write
    * from intuition, and Paizo's numbers do not support it.
    */
-  describe("what an ability's Frequency argues for", () => {
-    it("reads a once-per-round recharge as unlimited use", () => {
-      expect(areaColumnFor({ per: "round" })?.key).toBe("unlimited use");
+  describe("what an ability's own markers argue for", () => {
+    /** Verbatim from a black dragon's Breath Weapon in a live world. */
+    const breath =
+      "<p>The dragon breathes a spray of acid that deals " +
+      "@Damage[12d6[acid]|options:area-damage] damage in an 80-foot line " +
+      "(@Check[reflex|dc:22|basic] save).</p><p>It can't use Breath Weapon " +
+      "again for @Damage[1d4]{1d4} rounds.</p>";
+    const plain = "<p>The bog elder breathes out. Each creature must save.</p>";
+
+    it("reads a once-per-round frequency as unlimited use", () => {
+      expect(areaColumnFor({ per: "round" }, plain)?.key).toBe("unlimited use");
+    });
+
+    /**
+     * The opposite direction from `per: "round"`, and the whole reason the
+     * "a recharge is at-will" explanation had to go: 77.0% of these sit nearer
+     * Limited Use, against that group's 5.4%.
+     */
+    it("reads a recharge written in prose as limited use", () => {
+      expect(areaColumnFor(null, breath)?.key).toBe("limited use");
+    });
+
+    it("reads the prose recharge however the book spells the apostrophe", () => {
+      for (const variant of ["can't", "can\u2019t", "can&#39;t", "can&rsquo;t"]) {
+        const text = `<p>It ${variant} use Breath Weapon again for 1d4 rounds.</p>`;
+        expect(areaColumnFor(null, text)?.key).toBe("limited use");
+      }
     });
 
     it("declines to read once-per-day as limited use", () => {
-      expect(areaColumnFor({ per: "day" })).toBeNull();
+      expect(areaColumnFor({ per: "day" }, plain)).toBeNull();
     });
 
     it("declines on the clock-based limits, which are too rare to call", () => {
-      expect(areaColumnFor({ per: "PT1H" })).toBeNull();
-      expect(areaColumnFor({ per: "PT10M" })).toBeNull();
+      expect(areaColumnFor({ per: "PT1H" }, plain)).toBeNull();
+      expect(areaColumnFor({ per: "PT10M" }, plain)).toBeNull();
     });
 
-    it("declines when there is no frequency at all", () => {
-      expect(areaColumnFor(null)).toBeNull();
-      expect(areaColumnFor({ per: null })).toBeNull();
+    /**
+     * The 77% was measured only on abilities carrying no frequency field at
+     * all - anything with one went into its own bucket. Reading the prose on
+     * an ability that also has a frequency would apply a figure to rows it was
+     * never measured over.
+     */
+    it("ignores the prose when the ability also carries a frequency field", () => {
+      expect(areaColumnFor({ per: "day" }, breath)).toBeNull();
+      expect(areaColumnFor({ per: "PT1H" }, breath)).toBeNull();
+    });
+
+    it("declines when there is no marker of either kind", () => {
+      expect(areaColumnFor(null, plain)).toBeNull();
+      expect(areaColumnFor({ per: null }, plain)).toBeNull();
     });
   });
 
-  describe("suggesting a column from Frequency", () => {
+  describe("suggesting a column in the editor", () => {
     const grafted = (per: string | null) => {
       const s = new EditSession(src, rescaleCreature(src, 5));
       const index = s.graftedCount;
@@ -584,13 +619,50 @@ describe("area damage", () => {
       const field = s.abilityDamage(id)[0]!;
 
       expect(field.suggested).toBe("unlimited use");
-      expect(field.suggestion).toContain("Recharges every round");
-      expect(field.suggestion).toContain("Nothing is changed until you pick it");
+      expect(field.suggestion).toContain("Fires once per round");
+      expect(field.suggestion).toContain("129");
+      expect(field.suggestion).toContain("nothing changes until you pick it");
     });
 
-    it("suggests nothing for once-per-day, or for no frequency", () => {
+    it("suggests nothing for once-per-day, or for no marker at all", () => {
       expect(grafted("day").s.abilityDamage("graft:0")[0]!.suggested).toBeNull();
       expect(grafted(null).s.abilityDamage("graft:0")[0]!.suggested).toBeNull();
+    });
+
+    /**
+     * The case that started this: a black dragon's Breath Weapon, which has no
+     * `system.frequency` at all and says so in prose instead. Before the prose
+     * rule the editor was silent on the single most obvious area ability in the
+     * game.
+     */
+    it("suggests limited use for a breath weapon that recharges in its text", () => {
+      const s = new EditSession(src, rescaleCreature(src, 5));
+      const index = s.graftedCount;
+      s.graft(
+        {
+          name: "Breath Weapon",
+          type: "action",
+          system: {
+            actionType: { value: "action" },
+            actions: { value: 2 },
+            traits: { value: ["acid", "arcane"] },
+            description: {
+              value:
+                "<p>The dragon breathes acid, dealing " +
+                "@Damage[7d8[acid]|options:area-damage] damage.</p>" +
+                "<p>It can't use Breath Weapon again for 1d4 rounds.</p>",
+            },
+          },
+        },
+        { fromLevel: 5 }
+      );
+      const field = s.abilityDamage(`graft:${index}`)[0]!;
+
+      expect(field.suggested).toBe("limited use");
+      expect(field.suggestion).toContain("Recharges in its text");
+      expect(field.suggestion).toContain("283");
+      // Suggested, not applied: the damage is exactly as it was written.
+      expect(field.expr).toBe("7d8");
     });
 
     /**
@@ -611,7 +683,7 @@ describe("area damage", () => {
       expect(html).toContain("Suggested: Unlimited use — 2d8+3 (12)");
       expect(html).toContain("· suggested");
       expect(html).toContain("suggesting");
-      expect(html).toContain("Recharges every round");
+      expect(html).toContain("Fires once per round");
       // The real option is still there to be chosen, unselected.
       expect(html).toContain(">Unlimited use — 2d8+3 (12) · suggested</option>");
     });
@@ -623,7 +695,7 @@ describe("area damage", () => {
 
       const html = renderAbilities(s, { ...EMPTY_ABILITY_PANEL }, id);
       expect(html).not.toContain("Suggested:");
-      expect(html).not.toContain("Recharges every round");
+      expect(html).not.toContain("Fires once per round");
       expect(s.abilityText(id)).toContain("@Damage[2d8+3[poison]|options:area-damage]");
     });
   });

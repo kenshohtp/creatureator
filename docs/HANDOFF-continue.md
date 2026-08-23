@@ -69,8 +69,8 @@ is needed. A *server* restart is only needed when adding a new module.
 
 ## 3. Current state
 
-**334 tests passing**, no `describe.todo` left. 14 test files.
-(Sandbox count is 316; the 18 corpus tests in `scale-decode.test.ts` need
+**338 tests passing**, no `describe.todo` left. 14 test files.
+(Sandbox count is 320; the 18 corpus tests in `scale-decode.test.ts` need
 `npm run fetch:corpus`, which is gitignored. Dan's `npm run check` is the gate.)
 
 ### What works, and how it was verified
@@ -515,17 +515,32 @@ Dragon Breath on a level 5 NPC carries
 `system.frequency = {value: 0, max: 1, per: "PT1H"}`, and the three abilities
 beside it carry `null`. So the module *can* read it.
 
-**Measured, and answered.** `tools/probe-area-frequency.js` ran over 875 area
+**Measured twice, and the second run overturned the first's framing.** `tools/probe-area-frequency.js` ran over 875 area
 terms on 2,131 creatures. One rule survived: **`per: "round"` means Unlimited
 Use** (5.4% nearer Limited, 0% exact on it, n=129). The rule everyone would
 have guessed - once per day means limited use - **is false**: n=32 at 37.5%
 nearer Limited, *below* the 46.6% for abilities with no frequency at all.
 Everything else is n<10.
 
+Then a live black dragon showed the hole: its Breath Weapon recharges in
+**prose** ("can't use Breath Weapon again for 1d4 rounds") with no frequency
+field at all. Re-measured, prose recharge is a *stronger* signal than the
+frequency field and points the **opposite** way - 283 terms, 77.0% nearer
+Limited Use. The two groups are troop routines (`per: round`, Unlimited) and
+breath weapons (prose, Limited); the marker is a proxy for what kind of ability
+it is, not for frequency.
+
+Both rules built, covering ~47% of area terms. Refused: `per: "day"` (n=32,
+unsupported) and the 414-term no-marker group (leans Unlimited only weakly).
 Built as a *suggestion*, not a selection: the dropdown shows
-`Suggested: Unlimited use — …` as a disabled placeholder with the evidence under
-it, and the damage is untouched until the user picks. Covers ~15% of area terms;
-the other 85% keep asking. Full numbers and the method caveat in
+`Suggested: … ` as a disabled placeholder with the evidence under it, and the
+damage is untouched until the user picks.
+
+**The lesson worth keeping.** The first rule shipped with a comment explaining
+*why* once-per-round means unlimited - "a recharge is at-will over an encounter".
+Plausible, matched the numbers, and wrong: it predicts prose recharges are
+unlimited, and they are the most Limited group in the data. A correlation with a
+satisfying story attached is still just a correlation. Full numbers in
 ARCHITECTURE.md 7.6.
 
 Also corrected on the way past: the module docstring in `rescale-ability.ts`

@@ -3,8 +3,19 @@
  *
  * Paste into the Foundry console (F12) on a PF2e world. Takes a minute or two.
  *
- * QUESTION: does an ability's `system.frequency` predict which column of
- * Table 2-12 (Area Damage) its published damage lands on?
+ * QUESTION: what predicts which column of Table 2-12 (Area Damage) an ability's
+ * published damage lands on - `system.frequency`, or a recharge written in
+ * prose?
+ *
+ * Run 1 answered the first half: `per: "round"` means Unlimited Use (n=129,
+ * 5.4% nearer Limited, 0% exact on it) and `per: "day"` means nothing (n=32,
+ * 37.5%, below the 46.6% of abilities carrying no frequency at all).
+ *
+ * Then a live sheet showed the hole. A black dragon's Breath Weapon ends with
+ * "It can't use Breath Weapon again for 1d4 rounds" - a recharge in **prose**,
+ * with no `system.frequency` at all. The archetypal recharge ability sits in
+ * the 80% the rule cannot see. If prose recharges behave like `per: "round"`,
+ * the signal covers far more than the 15% currently claimed.
  *
  * WHY IT MATTERS: the editor offers both columns for area damage and makes the
  * user choose, on the stated grounds that "which one applies depends on the
@@ -159,6 +170,12 @@
         if (!text) continue;
 
         const freq = sys.frequency ?? null;
+        /**
+         * "It can't use Breath Weapon again for 1d4 rounds." The apostrophe
+         * arrives as a literal, a curly quote or an HTML entity depending on
+         * the book, so all three are allowed for.
+         */
+        const prose = /can(?:'|\u2019|&#39;|&rsquo;)?t use[^.]{0,120}again for/i.test(text);
         let itemHadArea = false;
 
         for (const inner of inners(text, "@Damage[")) {
@@ -173,6 +190,7 @@
             rows.push({
               actor: entry.name, item: item.name, level, piece: piece.trim(), avg,
               hasFrequency: freq !== null,
+              prose,
               per: freq?.per ?? null,
               max: freq?.max ?? null,
               dUnlimited: avg - unlimited,
@@ -203,31 +221,50 @@
     );
   };
 
-  const withFreq = rows.filter((r) => r.hasFrequency);
-  const without = rows.filter((r) => !r.hasFrequency);
-
   console.log(`\n=== area damage terms: ${rows.length} from ${areaItems} abilities on ${sampled} creatures ===`);
   console.log(`(system warnings suppressed: ${suppressed})\n`);
   summarise("ALL", rows);
-  summarise("frequency SET", withFreq);
-  summarise("frequency ABSENT", without);
 
   /**
-   * The decisive comparison. If frequency means anything, the abilities that
-   * have one should sit nearer "limited use" than the ones that do not - and
-   * the gap should be large enough to act on, not merely present.
+   * One row per signal, so `per: "round"` and a prose recharge can be compared
+   * side by side against each other and against abilities carrying neither.
+   * Lumping "has a frequency" together was run 1's framing mistake: it hid the
+   * fact that `round` and `day` point in opposite directions.
    */
-  console.log(
-    `\nfrequency SET    -> nearer limited: ${pct(withFreq.filter((r) => Math.abs(r.dLimited) < Math.abs(r.dUnlimited)).length, withFreq.length)}`
-  );
-  console.log(
-    `frequency ABSENT -> nearer limited: ${pct(without.filter((r) => Math.abs(r.dLimited) < Math.abs(r.dUnlimited)).length, without.length)}`
-  );
+  const signal = (r) =>
+    r.per !== null ? `per:${r.per}` : r.prose ? "prose recharge" : "(nothing)";
 
-  const perCounts = {};
-  for (const r of withFreq) perCounts[r.per] = (perCounts[r.per] ?? 0) + 1;
-  console.log("\n=== frequency 'per' values seen ===", perCounts);
-  console.log("=== a few rows ===", rows.slice(0, 5));
+  const groups = {};
+  for (const r of rows) (groups[signal(r)] ??= []).push(r);
+
+  console.log("\n=== by signal ===");
+  for (const [key, set] of Object.entries(groups).sort((a, b) => b[1].length - a[1].length)) {
+    summarise(key, set);
+  }
+
+  /**
+   * The comparison that decides whether prose is worth reading. If a prose
+   * recharge behaves like `per: "round"` - far from the Limited column - the
+   * rule can cover the dragons too. If it behaves like "(nothing)", the text is
+   * decoration and the rule stays where it is.
+   */
+  const nearLim = (set) =>
+    pct(set.filter((r) => Math.abs(r.dLimited) < Math.abs(r.dUnlimited)).length, set.length);
+  console.log("\n=== nearer the LIMITED column (lower = more Unlimited-like) ===");
+  for (const key of ["per:round", "prose recharge", "(nothing)", "per:day"]) {
+    const set = groups[key];
+    if (set) console.log(`  ${pad(key, 16)} n=${pad(set.length, 6)} ${nearLim(set)}`);
+  }
+
+  /** What the abilities actually are, so a group can be checked by eye. */
+  const names = (key) => {
+    const set = groups[key] ?? [];
+    const by = {};
+    for (const r of set) by[r.item] = (by[r.item] ?? 0) + 1;
+    return Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 15);
+  };
+  console.log("\n=== per:round, most common abilities ===", names("per:round"));
+  console.log("=== prose recharge, most common abilities ===", names("prose recharge"));
 
   window.__areaFrequency = rows;
   console.log("\nrows on window.__areaFrequency");
