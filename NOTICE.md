@@ -42,21 +42,41 @@ An earlier draft of this file carried a reconstructed author list. It has been r
 rather than corrected, because a plausible-looking legal notice is more dangerous than
 an obviously incomplete one.
 
-### ORC Notice
+### ORC Notice — ORC License §III.a
 
-Checked 23 Aug 2026 against two independent sources that agree: Paizo's own ORC
-licence page, and the PF2e Foundry system's `licenses/ORCLicense.md`.
+Checked 23 Aug 2026 against three sources that agree: the ORC License text itself
+(§III.a), Paizo's ORC licence page, and the PF2e Foundry system's
+`licenses/ORCLicense.md`.
 
 > This product is licensed under the ORC License located at the Library of Congress
 > at TX 9-307-067 and available online at various locations. All warranties are
 > disclaimed as set forth therein.
 
-An earlier draft of this block read "held in the Library of Congress" and appended a
-list of mirror URLs (azoralaw, gencon). Both sources above read "located at" and
-neither lists mirrors. The earlier wording is in use by some publishers, which is why
-it looked right — it is not the wording Paizo publishes.
+**Do not "correct" this back.** An earlier draft read "**held in** the Library of
+Congress" and appended mirror URLs (azoralaw, gencon). Two separate things were going
+on there and only one of them was a mistake:
 
-### Attribution Notice — INCOMPLETE, fill from the primary source
+- "held in" is wrong. Every source reads "located at". That was the real defect.
+- The mirror list is **not** wrong in principle. §III.e's sample notice reads
+  "available online at various locations including [possible domain names may be
+  inserted] and others", so filling that bracket with domains follows the licence's
+  own example.
+
+§III.a states the requirement in its bare form; §III.e shows it expanded. Both trace
+to the licence. The bare form is used here because it is also what Paizo publishes,
+so this notice matches the licensor whose material is being used.
+
+One trap for anyone re-checking: the copy hosted at `chaosium.com` is a
+pre-registration draft and carries `TX00[number TBD]` where the registration number
+belongs. TX 9-307-067 is the assigned number, and is what Paizo's page shows.
+
+### Attribution Notice — ORC License §III.b — INCOMPLETE, fill from the primary source
+
+The "based on the following Licensed Material" statement satisfies §III.b(i); the
+credit request satisfies §III.b(ii). §III.c (Reserved Material) and §III.d (Expressly
+Designated Licensed Material) are conditional — the licence says "if any" and "that
+You agree to offer" — and Creatureator has neither, so their absence here is correct
+rather than an omission.
 
 ```
 This product is based on the following Licensed Material:
@@ -65,7 +85,7 @@ This product is based on the following Licensed Material:
       Paizo premium Foundry module for GM Core. It names the product, the year,
       Paizo Inc., and the authors. ]
 
-If you use our Licensed Material in your own published work, please credit us as
+If you use our Licensed Material in your own published works, please credit us as
 follows:
 
     Creatureator, © 2026, kenshohtp.
