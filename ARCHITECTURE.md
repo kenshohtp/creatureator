@@ -793,6 +793,41 @@ inflated the gap, and no test caught any of them: reading `.ldb` files with
 Draconic Codex reporting as shipped while its own dragon reported as absent. §8's
 rule again: read the output, not just the assertions.
 
+### 7.8 The classifier held on creatures it had never seen (23 Aug 2026)
+
+An accidental experiment, worth recording because it is the strongest evidence the
+threshold rule has.
+
+The AoN corpus was refetched on 23 Aug for an unrelated measurement (§7.7), taking it
+from 4,714 creatures to 4,748 — thirty-four creatures published after `classify()` was
+written and tuned. `test/scale-decode.test.ts` asserts *exact* agreement, `hits ===
+total`, per statistic. It passed unchanged:
+
+```
+  perception                100.0%  (4743/4743)
+  fortitude_save            100.0%  (4743/4743)
+  reflex_save               100.0%  (4743/4743)
+  will_save                 100.0%  (4743/4743)
+  wisdom                    100.0%  (4743/4743)
+  hp                        100.0%  (4743/4743)
+  dexterity / charisma       99.9%
+  constitution               99.8%
+  strength                   99.2%
+  attack_bonus               94.9%  (5607/5908)
+  strike_damage_average      91.5%  (5944/6494)
+  ac                         86.7%  (4111/4743)
+```
+
+This is what §2 means by "not a heuristic, it is the rule Paizo used". A fitted
+heuristic degrades on data published after it was fitted. This did not move at all on
+six statistics. AC's 86.7% is unchanged in character from the 86.8% recorded before
+the refresh — see §7.6; it is a property of how AC is authored, not a fitting error.
+
+The corpus size is deliberately no longer written into the test's docstring or its
+`describe` label. It changes every time `npm run fetch:corpus` runs, and a count baked
+into a label is a count that quietly stops being true — the scoreboard printed by the
+run carries the real figure.
+
 ### 7.4 Licensing
 
 Generated table data is Open Game Content under the ORC licence. Needs a `NOTICE.md`

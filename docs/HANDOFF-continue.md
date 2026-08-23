@@ -85,7 +85,7 @@ is needed. A *server* restart is only needed when adding a new module.
 
 | Piece | Verification |
 |---|---|
-| Band classification | Exact agreement with 4,714 published creatures on Perception, all 3 saves, HP (4709/4709 each). 99%+ on attributes. AC is 86.8% — investigated and left alone, see ARCHITECTURE 7.6. |
+| Band classification | Exact agreement on Perception, all 3 saves, Wisdom and HP — 4743/4743 each, re-run 23 Aug 2026 against a corpus refreshed that day. 99%+ on the other attributes. AC is 86.7% — investigated and left alone, see ARCHITECTURE 7.6. |
 | GM Core tables | Generated from AoN by document ID, committed. All 12 tables. |
 | NPC data mapping | 720 creatures across 66 packs, zero field misses. |
 | Whole-creature rescaling | Husk Zombie 2→5 matches Dan's hand-built version within a point. |

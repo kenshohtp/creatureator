@@ -1,5 +1,10 @@
 /**
- * Validates `classify()` against 4,714 published Paizo creatures.
+ * Validates `classify()` against every published Paizo creature in the corpus.
+ *
+ * The count is deliberately not written here. `npm run fetch:corpus` grows it
+ * whenever AoN publishes more (4,714 in July 2026, 4,748 in August), and a number
+ * baked into a docstring is a number that quietly stops being true. The scoreboard
+ * this suite prints carries the real figure for the run you are looking at.
  *
  * Archives of Nethys tags every creature statistic with a `*_scale_number`.
  * Decoded (see `BAND_BY_SCALE_NUMBER`) these are band labels, which makes the
@@ -113,7 +118,7 @@ function score(stat: string, scale: string, table: TableKey): Score {
 
 const pct = (s: Score) => (s.total ? (s.hits / s.total) * 100 : 0);
 
-describe.skipIf(!available)("classify() vs 4,714 published creatures", () => {
+describe.skipIf(!available)("classify() vs the published creature corpus", () => {
   it("loaded a substantial corpus", () => {
     expect(corpus.length).toBeGreaterThan(4000);
   });
