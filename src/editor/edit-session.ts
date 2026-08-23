@@ -124,7 +124,14 @@ export interface AbilityDCField {
   /** Position among the inline elements, for writing the edit back. */
   index: number;
   label: string;
-  dc: number;
+  /** null when the DC is a formula rather than a number - see `unresolved`. */
+  dc: number | null;
+  /**
+   * True when the ability's DC is a formula that cannot resolve on a creature.
+   * Player-facing actions resolve theirs from a class DC; on an NPC the sheet
+   * shows DC 0. The field is offered precisely so it can be given a real value.
+   */
+  unresolved: boolean;
   band: Band | null;
   offset: number | null;
   options: { band: Band; value: number }[];
@@ -642,10 +649,10 @@ export class EditSession {
     findInlines(text).forEach((inline, index) => {
       if (inline.kind !== "check") return;
       const check = inline as InlineCheck;
-      if (check.dc === null || check.isFlat) return;
+      if (check.isFlat) return;
       if (!SCALED_CHECK_TYPES.has(check.checkType)) return;
 
-      const c = classifyAbilityDC(this.level, check.dc);
+      const c = check.dc === null ? null : classifyAbilityDC(this.level, check.dc);
       const options = (["extreme", "high", "moderate"] as Band[]).flatMap((band) => {
         const value = abilityDCAt(this.level, band);
         return value === null ? [] : [{ band, value }];
@@ -655,6 +662,7 @@ export class EditSession {
         index,
         label: `${check.checkType.charAt(0).toUpperCase()}${check.checkType.slice(1)} DC`,
         dc: check.dc,
+        unresolved: check.dc === null,
         band: c?.band ?? null,
         offset: c?.offset ?? null,
         options,
@@ -664,7 +672,14 @@ export class EditSession {
     return out;
   }
 
-  /** Write a DC back into the ability's text, leaving everything else alone. */
+  /**
+   * Write a DC back into the ability's text, leaving everything else alone.
+   *
+   * `force` replaces a DC that is currently a formula. The engine never does
+   * that on its own - rescaling a formula is arithmetic on something that is
+   * not a quantity - but a user pinning down a broken DC is exactly the case
+   * this exists for.
+   */
   setAbilityDC(rowId: string, inlineIndex: number, dc: number): boolean {
     if (!Number.isFinite(dc)) return false;
     const text = this.abilityText(rowId);
@@ -674,7 +689,7 @@ export class EditSession {
 
     const next =
       text.slice(0, target.start) +
-      withDC(target as InlineCheck, Math.round(dc)) +
+      withDC(target as InlineCheck, Math.round(dc), { force: true }) +
       text.slice(target.end);
 
     return this.setAbilityField(rowId, "description", next);

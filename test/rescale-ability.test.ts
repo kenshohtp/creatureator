@@ -94,11 +94,19 @@ describe("numbers that must not move", () => {
     expect(notes[0]!.detail).toContain("6d6 poison");
   });
 
-  it("refuses a DC that is not a plain number", () => {
-    const text = "@Check[fortitude|dc:resolve(@actor.level)]";
+  /**
+   * Found on a real creature: "Dragon Breath" copied onto an NPC rendered as
+   * "DC 0 Basic Reflex", because its DC resolves from a character's class DC
+   * and a creature has none. Refusing to rescale it is right. Saying nothing
+   * about it is not — the sheet ends up with a save nobody can fail.
+   */
+  it("refuses a DC that is a formula, and explains what that means on a creature", () => {
+    const text = "@Check[reflex|dc:resolve(@actor.system.attributes.classDC.value)|basic]";
     const { html, notes } = rescaleAbilityText(text, 9, 3);
     expect(html).toBe(text);
-    expect(notes[0]!.reason).toBe("unreadable");
+    expect(notes[0]!.reason).toBe("unresolved-dc");
+    expect(notes[0]!.detail).toContain("DC 0");
+    expect(notes[0]!.detail).toContain("Set a number");
   });
 
   it("does not scale a save DC out of the tables' range", () => {

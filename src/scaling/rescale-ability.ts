@@ -72,9 +72,19 @@ export interface AbilityChange {
 
 export interface AbilityNote {
   /** Why a number in this ability was left exactly as it was. */
-  reason: "flat-check" | "skill-check" | "damage" | "legacy-roll" | "unreadable";
+  reason:
+    | "flat-check"
+    | "skill-check"
+    | "damage"
+    | "legacy-roll"
+    | "unresolved-dc"
+    | "unreadable";
   detail: string;
 }
+
+/** Keep a formula readable in a note without letting it break the markup. */
+const escapeInner = (inner: string) =>
+  inner.length > 60 ? `${inner.slice(0, 57)}...` : inner;
 
 export interface AbilityRescaleResult {
   /** The description, with governed DCs rewritten and nothing else touched. */
@@ -152,9 +162,20 @@ function noteFor(inline: Inline): AbilityNote | null {
   }
 
   if (inline.dc === null) {
+    /**
+     * A DC written as a formula rather than a number. Player-facing actions do
+     * this - "Dragon Breath" resolves its DC from the character's class DC -
+     * and a creature has no class DC, so PF2e renders it as **DC 0** on the
+     * sheet. Refusing to touch it is right; refusing quietly is not, because
+     * the result is a save nobody can fail.
+     */
     return {
-      reason: "unreadable",
-      detail: `Left "${inline.raw}" unchanged - its DC is not a plain number.`,
+      reason: "unresolved-dc",
+      detail:
+        `The ${inline.checkType} DC here is a formula, not a number ` +
+        `("${escapeInner(inline.inner)}"). It resolves from a character's class ` +
+        `DC, which a creature does not have, so it shows as DC 0 on the sheet. ` +
+        `Set a number for it below.`,
     };
   }
 

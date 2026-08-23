@@ -482,3 +482,57 @@ describe("the from-a-creature panel", () => {
     expect(html).toContain("Reading Fortune Dragon");
   });
 });
+
+/**
+ * A DC that is a formula, found by copying "Dragon Breath" onto a husk zombie
+ * in a live world: the sheet rendered "DC 0 Basic Reflex", because the ability
+ * resolves its DC from a character's class DC and a creature has none.
+ */
+describe("a DC that cannot resolve on a creature", () => {
+  const src = JSON.parse(
+    readFileSync(resolve(import.meta.dirname, "fixtures/ability-creature.json"), "utf8")
+  ) as NPCSource;
+  const dragonBreath =
+    "<p>You breathe fire. Each creature must attempt a " +
+    "@Check[reflex|dc:resolve(@actor.system.attributes.classDC.value)|basic] save.</p>";
+
+  const session = () => {
+    const s = new EditSession(src, rescaleCreature(src, 5));
+    const id = s.addAbility("Dragon Breath");
+    s.setAbilityField(id, "description", dragonBreath);
+    return { s, id };
+  };
+
+  it("offers the DC as a field rather than hiding it", () => {
+    const { s, id } = session();
+    const dcs = s.abilityDCs(id);
+    expect(dcs).toHaveLength(1);
+    expect(dcs[0]).toMatchObject({ label: "Reflex DC", dc: null, unresolved: true });
+    // And the bands are still offered, so it can be given a real value.
+    expect(dcs[0]!.options.map((o) => o.value)).toEqual([26, 22, 19]);
+  });
+
+  it("says on screen that it renders as DC 0", () => {
+    const { s, id } = session();
+    const html = renderAbilities(s, { ...EMPTY_ABILITY_PANEL }, id);
+    expect(html).toContain("DC 0 on a creature");
+    expect(html).toContain("Give it a DC…");
+  });
+
+  it("replaces the formula with a real number when the user picks one", () => {
+    const { s, id } = session();
+    expect(s.setAbilityDC(id, 0, 22)).toBe(true);
+    expect(s.abilityText(id)).toContain("@Check[reflex|dc:22|basic]");
+    expect(s.abilityDCs(id)[0]).toMatchObject({ dc: 22, band: "high", unresolved: false });
+  });
+
+  it("still refuses to rescale one automatically", () => {
+    const { s, id } = session();
+    // Rescaling the creature must not turn a formula into arithmetic.
+    const rescaled = rescaleCreature(src, 20);
+    expect(
+      rescaled.abilityChanges.every((a) => a.changes.every((c) => Number.isFinite(c.from)))
+    ).toBe(true);
+    expect(s.abilityText(id)).toContain("dc:resolve(");
+  });
+});

@@ -301,11 +301,13 @@ const ACTION_TYPES: { value: string; label: string }[] = [
  * chip is the same one every other number in the module carries.
  */
 function abilityDCRow(rowId: string, field: AbilityDCField): string {
-  const chip = field.band
-    ? `<span class="band ${field.band}">${escapeHtml(
-        field.band.charAt(0).toUpperCase() + field.band.slice(1)
-      )}${field.offset ? (field.offset > 0 ? ` +${field.offset}` : ` ${field.offset}`) : ""}</span>`
-    : `<span class="band none">—</span>`;
+  const chip = field.unresolved
+    ? `<span class="band unresolved" title="This DC is a formula and shows as 0 on a creature">DC 0 on a creature</span>`
+    : field.band
+      ? `<span class="band ${field.band}">${escapeHtml(
+          field.band.charAt(0).toUpperCase() + field.band.slice(1)
+        )}${field.offset ? (field.offset > 0 ? ` +${field.offset}` : ` ${field.offset}`) : ""}</span>`
+      : `<span class="band none">—</span>`;
 
   const options = field.options
     .map(
@@ -317,12 +319,16 @@ function abilityDCRow(rowId: string, field: AbilityDCField): string {
     .join("");
   const unset = field.options.some((o) => o.value === field.dc)
     ? ""
-    : `<option value="" disabled selected>Set band…</option>`;
+    : `<option value="" disabled selected>${
+        field.unresolved ? "Give it a DC…" : "Set band…"
+      }</option>`;
 
   return `
-    <div class="ability-dc" data-ability="${escapeHtml(rowId)}" data-inline="${field.index}">
+    <div class="ability-dc${field.unresolved ? " unresolved" : ""}"
+         data-ability="${escapeHtml(rowId)}" data-inline="${field.index}">
       <span class="ability-dc-label">${escapeHtml(field.label)}</span>
-      <input type="number" class="ability-dc-input" step="1" value="${field.dc}"
+      <input type="number" class="ability-dc-input" step="1"
+             value="${field.dc ?? ""}" placeholder="—"
              data-ability="${escapeHtml(rowId)}" data-inline="${field.index}"
              aria-label="${escapeHtml(field.label)}">
       ${chip}

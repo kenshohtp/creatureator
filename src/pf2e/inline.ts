@@ -210,8 +210,17 @@ export function findInlines(text: string): Inline[] {
  * differing from the original in exactly the numbers that were rescaled and
  * nothing else.
  */
-export function withDC(check: InlineCheck, dc: number): string {
-  if (check.dc === null) return check.raw;
+export function withDC(
+  check: InlineCheck,
+  dc: number,
+  options: { force?: boolean } = {}
+): string {
+  // A DC that is not a plain number is a formula - "dc:resolve(@actor...)" -
+  // and rescaling one automatically would be arithmetic on something that is
+  // not a quantity. It is only ever replaced when a user says so explicitly,
+  // which is what `force` means.
+  if (check.dc === null && !options.force) return check.raw;
+
   const params = check.inner.split("|");
   const rewritten = params
     .map((p) => (p.trim().startsWith("dc:") ? `dc:${dc}` : p))

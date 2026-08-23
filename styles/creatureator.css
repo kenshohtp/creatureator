@@ -857,3 +857,15 @@
 .creatureator .ability-result.creature .ability-cost {
   font-variant-numeric: tabular-nums;
 }
+
+/* A DC that is a formula rather than a number. Player-facing actions resolve
+   theirs from a class DC, which a creature has none of - the sheet renders it
+   as DC 0, so the field is flagged rather than left looking ordinary. */
+.creatureator .band.unresolved {
+  background: var(--creatureator-band-extreme);
+  color: #fff;
+}
+
+.creatureator .ability-dc.unresolved input.ability-dc-input {
+  border-color: var(--creatureator-band-extreme);
+}
