@@ -79,6 +79,13 @@ follows:
 - [ ] Confirm no creature names, descriptions or artwork have entered `src/data/`
 - [ ] Confirm the release artifact contains no Paizo premium module content
 
+**What `module.zip` must contain.** There is no release workflow — the zip is built by
+hand — so nothing enforces this and it has to be checked each time. The archive must
+carry `NOTICE.md` and `LICENSE` alongside `module.json`, `scripts/` and `styles/`.
+`module.json` points Foundry at `NOTICE.md` through its `license` field, and that link
+is dead if the file is not in the archive. Zipping the repo satisfies this; assembling
+a slim artifact from `scripts/` and `styles/` alone does not.
+
 ---
 
 ## What is deliberately NOT included
