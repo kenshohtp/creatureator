@@ -104,8 +104,9 @@ is needed. A *server* restart is only needed when adding a new module.
 
 - **AoN as an ability source.** Three of the four routes are built — copy from
   a compendium item, copy from another creature, and write one by hand (§7).
-  Fetching an ability's text from Archives of Nethys is not, and §7a argues the
-  case for it is weaker than it looks.
+  Fetching an ability's text from Archives of Nethys is not, and measurement says
+  it should not be: 98.3% of AoN's creatures already exist locally as real PF2e
+  data (§7a, ARCHITECTURE §7.7).
 - **Automatic ability damage scaling.** Still deliberately absent, and should
   stay absent — no table earns it. What now exists is the offer: damage marked
   `options:area-damage` carries Table 2-12's two figures for the target level as
@@ -347,9 +348,8 @@ Four sources, resolution order:
 3. **Hand-authored** — BUILT. `addAbility()` in `src/editor/edit-session.ts`
    pushes a blank `action` item marked `authored: true`, which the editor then
    treats like any other row. This is how `Bound to Occam` gets written.
-4. **AoN** — not built. Fetch text, generate a PF2e `action` item. Read §7a
-   before starting: a probe has already established the shape of the data and
-   where the difficulty actually is.
+4. **AoN** — not built, and measured as not worth building (§7a). Search AoN and
+   resolve the hit to the local item; do not reconstruct items that already exist.
 
 What a graft does, all of it reported rather than assumed
 (`src/pf2e/ability.ts`):
@@ -374,7 +374,17 @@ built.** It had been built nine commits earlier, at `db4e916`, and §3's
 verification table said so on the same page. Do not act on a "not built" line in
 this document without grepping for it first — see §8.
 
-### 7a. AoN probe findings (23 Aug) — read before building the importer
+### 7a. AoN: probed, then measured — the importer is not worth building
+
+**Measured 23 Aug against a live install: 98.34% of AoN's 4,748 creatures already
+exist in the Foundry compendia, and 41 of the 79 that do not are pre-remaster names
+the remaster replaced.** AoN also trails Foundry on the newest books rather than
+leading it. Full numbers, method and the five normalisation tiers are in
+ARCHITECTURE.md §7.7. AoN's role is search and corpus validation, not import.
+
+The probe findings below predate that measurement. They are kept because they are
+what anyone reopening the question would otherwise re-derive — and because the
+prose→inline-element problem they describe is the reason the importer is expensive.
 
 Four documents pulled from AoN's Elasticsearch and read in full: the `action`
 Breath Weapon, the `creature-ability` Grab, Husk Zombie (`creature-1919`) and
@@ -643,18 +653,16 @@ ability damage — now true only for non-area damage, and worded per case.
 ## 10. Suggested first move
 
 §9a is done, and so are all three ability routes that do not need the network
-(§7). What is genuinely open, in rough order of value:
+(§7). The AoN gap has been measured and the importer is not worth building
+(§7a, ARCHITECTURE §7.7). What is genuinely open, in rough order of value:
 
-1. **Measure the AoN gap before building an importer.** The unexamined
-   assumption is that AoN carries content Foundry does not. It may largely not:
-   for anything in a book Foundry ships, the compendium item already exists with
-   correct inline syntax, rule elements and remastered text, and parsing AoN
-   prose to rebuild it would be strictly worse — the §4 argument, applied to
-   abilities instead of creatures. Diff AoN's sources against the local
-   compendium index and find out. If the gap is thin, AoN's value is *search*,
-   not import, and that is a much smaller build.
-2. **Archives of Nethys as a fourth ability source**, if step 1 justifies it.
-   §7a records what the data actually looks like and where the difficulty is.
-3. **ORC attribution** (§6.4, NOTICE.md) — blocks any public release. Dan owns
-   the primary source; it is one copied line, not research.
-4. **LLM drafting** — still last, and the rules engine ships useful without it.
+1. **ORC attribution** (§6.4, NOTICE.md) — blocks any public release. Dan owns
+   the primary source; it is one copied line, not research. With the AoN question
+   closed this is the only thing standing between the module and a release.
+2. **AoN as search**, if it is wanted at all — and it is now optional rather than
+   central. Not an importer: search AoN, then resolve the hit to the local Foundry
+   item through the five normalisation tiers in ARCHITECTURE §7.7, which cover
+   98.3% of AoN's creatures. Text import is the fallback that fires on 1.7% and
+   can be deferred indefinitely.
+3. **LLM drafting** — still last, and the rules engine ships useful without it.
+4. **Cosmetic** (§6.6) — the `1d4+3 → 2d4+10` shape, if it ever bothers anyone.

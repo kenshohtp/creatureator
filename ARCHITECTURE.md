@@ -258,8 +258,14 @@ Paizo-derived text is redistributed in the module.
 The response shape is rich and already structured — a single creature document returns
 `ac`, `hp_raw`, `attack_bonus[]`, `strike_damage_average[]`, per-ability modifiers,
 `trait[]`, `speed{}`, `weakness{}`, `immunity_markdown`, plus a full statblock in a
-tagged markdown dialect with `<actions string="Two Actions" />` markers. That last
-field is what Layer 3 parses for non-compendium abilities.
+tagged markdown dialect with `<actions string="Two Actions" />` markers.
+
+**AoN's role is search and corpus validation, not import.** This section used to end
+by saying that last field is what Layer 3 parses for non-compendium abilities.
+Measured 23 Aug 2026, 98.3% of AoN's creatures already exist in the install as real
+PF2e documents, and AoN's markdown is not reliably well-formed, so parsing it buys
+under 1% of coverage at significant risk. See §7.7. The structured `*_scale_number`
+fields remain what makes corpus validation possible, and that use is untouched.
 
 **CORS: confirmed open.** Verified 26 Jul 2026 from a live Foundry v14 console —
 a plain `fetch` against `elasticsearch.aonprd.com/aon/_search` resolved successfully
@@ -720,6 +726,70 @@ rank cap instead of rewriting a spell list.
 **Levels above 24 are refused.** GM Core's tables stop at 24 and the bestiary contains
 exactly one sampled level 25 creature (Oliphaunt of Jandelay). Extrapolating would
 invent numbers with no published basis.
+
+### 7.7 What AoN actually adds — MEASURED, and it is not creatures
+
+§4 assumed AoN's job was to supply content the Foundry compendia lack. Measured
+23 Aug 2026 against a live install (PF2e 8.4.0, 97 packs) and a same-day AoN
+corpus: it does not.
+
+**Method.** Foundry's packs are LevelDB, so they were read straight off disk with a
+dependency-free SSTable reader rather than through Foundry. `strings` on the `.ldb`
+files was tried first and rejected: it finds only records sitting in uncompressed
+blocks and silently misses everything inside a Snappy block, which for a gap
+measurement manufactures false absences. The reader was validated by known answer —
+Husk Zombie must appear in `book-of-the-dead-bestiary`, and does, where `strings`
+could not find it — and its totals independently reproduce three numbers this
+project had already obtained through Foundry's own API: 6,322 unique creature names
+against 6,393 index rows, 33,267 embedded abilities at 5.26 per creature against the
+"roughly 30,000, five per creature" estimate, and 1,403 standalone `action` items
+against 1,414.
+
+**Result.** Of 4,748 AoN creatures, 4,669 resolve against the install — **98.34%**.
+
+| tier | n |
+|---|---|
+| exact name | 4,371 |
+| same words, reordered — AoN `Adult Bog Dragon` = Foundry `Bog Dragon (Adult)` | 195 |
+| AoN name is a subset of a Foundry variant | 36 |
+| plural, article or parenthetical — `Ghast Cultists` = `Ghast Cultist` | 49 |
+| close spelling — `Wooly Wrangler` = `Woolly Wrangler` | 18 |
+| **unmatched** | **79 (1.66%)** |
+
+Of the 79, **41 are pre-remaster names from the legacy Bestiaries** — Faceless
+Stalker, Gnoll Hunter, Tiefling Adept, Pit Fiend, Lemure, Deep Gnome Rockwarden.
+AoN keeps the legacy entries; the install ships the Monster Core replacements under
+their remastered names. That is superseded text rather than missing content, and it
+is the text you would least want to import. The genuine residue is ~38 creatures,
+0.8%, almost all individually-named adventure-path NPCs.
+
+**Foundry does not lag AoN.** The measurement was run twice, four weeks apart. AoN
+gained 34 creatures between the runs; unmatched moved from 78 to 79, so 33 of the 34
+were already present. Both apparent additions to the unmatched list turned out to be
+AoN renaming entries it already had (`Greedspawn Soldiers` → `Greedspawn Soldier`),
+and both come from Pathfinder #219–#220 — books whose creatures the install already
+carried, along with #221.
+
+**Consequence.** The §2 argument — never parse an AoN stat block, the result is
+strictly worse than what already ships — extends to abilities unchanged. An importer
+would first need a prose→inline-element converter, because AoN writes its numbers as
+prose (`DC 27 Fortitude`, `9d8 acid damage in a 40-foot cone`) with no `@Check` or
+`@Damage` elements anywhere in its markdown. That converter would exist to
+reconstruct, worse, items already held locally with rule elements and remastered
+wording — for under one creature in a hundred.
+
+**What AoN is for is search**, and the resolution path is now measured rather than
+guessed: search AoN, normalise, resolve the hit to the local item. The five tiers
+above *are* the normalisation. Text import becomes a fallback firing on 1.7% of
+lookups, and can be deferred indefinitely.
+
+**A note on method.** Three separate mistakes in this measurement would each have
+inflated the gap, and no test caught any of them: reading `.ldb` files with
+`strings`; comparing names without normalising conventions; and filtering to
+`type: "npc"` when seven of the "missing" creatures were `type: "character"` in the
+`iconics` and `paizo-pregens` packs. Each was caught by a result that looked wrong —
+Draconic Codex reporting as shipped while its own dragon reported as absent. §8's
+rule again: read the output, not just the assertions.
 
 ### 7.4 Licensing
 
