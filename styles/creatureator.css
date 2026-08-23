@@ -693,6 +693,24 @@
   border-radius: 3px;
 }
 
+/* Rows from the embedded pool trade the provenance chip for a creature
+   attribution, and "Vorpal Archdragon - Creature 21" needs a good deal more
+   room than "HOMEBREW". Traits give up the width, since a passive copied off a
+   creature usually has none. */
+.creatureator .ability-result.embedded {
+  grid-template-columns: 5.5rem minmax(7rem, 1fr) minmax(0, 0.7fr) minmax(10rem, 1.4fr) auto;
+}
+
+/* Not .ability-origin: that is uppercased for the single word "automated", and
+   a creature name shouted in 0.72rem caps is unreadable. */
+.creatureator .ability-source {
+  font-size: 0.78rem;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .creatureator .ability-result:hover { background: rgba(0, 0, 0, 0.06); }
 
 .creatureator .ability-result .provenance { justify-self: start; }

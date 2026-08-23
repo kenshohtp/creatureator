@@ -648,13 +648,16 @@ function embeddedAbilityRow(entry: EmbeddedAbilityEntry, index: number): string 
   const level = entry.creature.level === null ? "?" : String(entry.creature.level);
   const also = entry.sources > 1 ? `on ${entry.sources} creatures` : "";
 
+  // Five children, matching the grid. A sixth wraps to a new implicit row and
+  // takes the button with it, so the count lives inside the source cell.
   return `
-    <li class="ability-result" data-embedded="${index}">
+    <li class="ability-result embedded" data-embedded="${index}">
       <span class="ability-cost">${escapeHtml(cost)}</span>
       <span class="ability-name">${escapeHtml(entry.name)}</span>
       <span class="ability-traits">${escapeHtml(entry.traits.slice(0, 3).join(", "))}</span>
-      <span class="ability-origin">${escapeHtml(entry.creature.name)} &middot; Creature ${escapeHtml(level)}</span>
-      <span class="muted">${escapeHtml(also)}</span>
+      <span class="ability-source">${escapeHtml(entry.creature.name)} &middot; Creature ${escapeHtml(
+        level
+      )}${also ? `<span class="muted"> &middot; ${escapeHtml(also)}</span>` : ""}</span>
       <button type="button" class="ability-copy-embedded" data-embedded="${index}">Copy</button>
     </li>`;
 }

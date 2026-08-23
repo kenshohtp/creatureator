@@ -1000,6 +1000,61 @@ describe("embedded ability index", () => {
     expect(out.map((e) => e.name).sort()).toEqual(["Grab", "Tail Lash"]);
   });
 
+  /**
+   * The row is a grid child count, not just markup. The first version rendered
+   * six spans into a five-column grid, which pushed the Copy button onto its
+   * own line under the cost column. Caught by looking at it, not by a test —
+   * so here is the test.
+   */
+  describe("the rendered row", () => {
+    const entry = toEmbeddedAbilityEntry(
+      bestiary, actor("Vorpal Archdragon", 21, []) as any, grab()
+    )!;
+
+    const panelWith = (results: unknown[]) => ({
+      ...EMPTY_ABILITY_PANEL,
+      mode: "creature" as const,
+      creatureSearch: "grab",
+      embeddedResults: results as never,
+      embeddedTotal: 33268,
+    });
+
+    it("puts exactly five children in the five-column grid", () => {
+      const html = renderAbilityPanel(panelWith([entry]), 5);
+      const row = html.slice(html.indexOf('class="ability-result embedded"'));
+      const cell = row.slice(0, row.indexOf("</li>"));
+      // Four spans plus the button. A sixth top-level child wraps the row.
+      const topLevelSpans = (cell.match(/\n\s{6}<span /g) ?? []).length;
+      expect(topLevelSpans).toBe(4);
+      expect(cell).toContain("<button");
+    });
+
+    it("names the creature and its level, since that is why this row exists", () => {
+      const html = renderAbilityPanel(panelWith([entry]), 5);
+      expect(html).toContain("Vorpal Archdragon");
+      expect(html).toContain("Creature 21");
+    });
+
+    it("says how many creatures share the name, without a sixth cell", () => {
+      const html = renderAbilityPanel(panelWith([{ ...entry, sources: 412 }]), 5);
+      expect(html).toContain("on 412 creatures");
+      const row = html.slice(html.indexOf('class="ability-result embedded"'));
+      expect(row.slice(0, row.indexOf("</li>"))).toContain('class="ability-source"');
+    });
+
+    it("says nothing about other creatures when there are none", () => {
+      const html = renderAbilityPanel(panelWith([entry]), 5);
+      expect(html).not.toContain("on 1 creatures");
+    });
+
+    it("offers the count before a search, and the wait during one", () => {
+      const idle = renderAbilityPanel({ ...panelWith([]), creatureSearch: "" }, 5);
+      expect(idle).toContain("33268 abilities across your creatures");
+      const busy = renderAbilityPanel({ ...panelWith([]), embeddedLoading: true }, 5);
+      expect(busy).toContain("Reading every creature's abilities");
+    });
+  });
+
   it("asks the index for items and the creature's level", () => {
     expect(EMBEDDED_INDEX_FIELDS).toContain("items");
     expect(EMBEDDED_INDEX_FIELDS).toContain("system.details.level.value");
