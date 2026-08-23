@@ -42,59 +42,52 @@ by remembering.
 
 ---
 
-## Open — next
+## Where work is tracked
 
-### 1. Install 0.1.0 from its manifest URL into a real Foundry
-**Done, 23 Aug.** Installed from the manifest URL and loaded cleanly: the
-`languages` path resolved, the esmodule initialised, the sidebar button opened the
-picker, 1,414 abilities indexed, no console errors. Procedure and the symlink
-hazard are in HANDOFF §6.10 — read it before repeating this.
+**`ROADMAP.md` owns this module's work.** GitHub issues are for ideas that are *out of
+scope* for Creatureator — other modules, other projects. Issue #1, the treasure
+generator, is the model: a separate module, so it was never roadmap material.
 
-**Fully closed 23 Aug.** Foundry v14's module tile renders four badges — project
-`url`, author, languages, version — and **no licence badge**. The ⓘ icon is the
-`url` field, not `license`. The `license` field stays in `module.json` because it is
-correct metadata and harmless (of 147 installed modules, 128 omit it entirely and two
-put a licence *name* in it, so Foundry validates nothing), but nobody should expect it
-to appear in the UI. The notice reaches users two other ways regardless: inside
-`module.zip`, and through the ⓘ link to the repository.
+The split exists so the two trackers cannot describe the same thing differently.
+Nothing in scope goes in an issue; nothing out of scope goes here.
 
-### 2. Sourcemaps
-**Closed 23 Aug — they ship.** They are 424 kB of the 665 kB archive, which looked
-like waste until the install test showed the console reporting frames as
-`creatureator.ts:144` rather than a minified `.js` offset. They buy real stack
-traces against TypeScript source in a user's install, for 130 kB compressed. The
-alternative — dropping the maps while the emitted JS still carries
-`//# sourceMappingURL` — would give every user 404s instead.
+---
 
-### 3. Re-read README against the redistribute-vs-use distinction
-**Done 23 Aug, at `8f5e2d8`.** README's Licence section carried the same false claim
-ARCHITECTURE §7.4 did — that descriptions and artwork "are never copied into module
-output" — plus a stale "attribution notice is not yet verified" release blocker. Both
-corrected, and the redistribute-vs-use split stated explicitly. Also refreshed: the
-baked-in 4,714 corpus figure, the missing `npm run package`, and the claim that all
-probes are pasted into the Foundry console, which stopped being true when
-`read-pack.mjs` landed.
+## Open
 
-### 4. Archives of Nethys as *search*
-**Closed 23 Aug — measured, and not worth building.** §7.7 showed 98.34% of AoN's
-creatures already exist locally; §7.9 extends that to abilities and finds Foundry
-holds ~19,886 unique ability names against AoN's 4,281 documents, of which 679 are
-item activation strings rather than abilities at all.
+Genuinely open, nothing else. Items are moved out when they close — leaving them here
+marked Done is how a list stops being read.
 
-AoN is a smaller and dirtier source than the install it would sit beside. Its
-indispensable role — the `*_scale_number` band labels behind the validation corpus,
-and the GM Core tables — is offline and already built. If search is ever the pain
-point, improving the module's own search is cheaper, works offline, and can see the
-homebrew and module content AoN cannot.
+### Improve the module's own search
+**Open, and next.** The chassis picker matches creature names by substring, and the
+ability panel searches only the 1,414 standalone compendium items. Neither can see the
+~33,000 abilities embedded in the creatures you already own, which §7.9 established is
+the largest ability collection available anywhere — five times what AoN indexes.
 
-### 5. Language model assistance
+This is the thing an AoN search feature would have been standing in for, and it is
+cheaper: it works offline, has no CORS dependency or rate limit, and can see homebrew
+and premium-module content AoN cannot.
+
+**Verify:** searching a trait or a partial name surfaces relevant abilities from
+embedded creature items, ranked, without loading every actor up front.
+
+### Cut 0.1.1
+**Open, small.** The released artifact predates today's fixes and declares
+`verified: "14.366"` while Foundry is now on 14.367 — which shows an amber badge and
+loads fine, so this is tidiness rather than repair. Bump `verified` only after loading
+the module on 367.
+
+**Verify:** `npm run package`, `gh release create`, then the manifest URL check in
+HANDOFF §6.10.
+
+### Language model assistance
 **Open, deliberately last.** The rules engine ships useful with no API key. When
 added: **a model may draft prose, but never decides a number.** Anything numeric
 it produces is validated against the Building Creatures tables and shown with its
 band like any other statistic. Approach chosen: bring-your-own-key,
 browser-direct.
 
-### 6. A rich text editor for ability descriptions
+### A rich text editor for ability descriptions
 **Open, low priority.** The field is deliberately raw today so inline elements
 like `@Check[fortitude|dc:22]` stay visible and editable. Revisit only if raw
 text proves too rough in practice.
@@ -123,19 +116,39 @@ creature is shared with someone lacking the source.
 
 ---
 
-## Accepted — known behaviour, not defects
+## Done
 
-| Behaviour | Why it stays | Detail |
-|---|---|---|
-| AC classifies at 86.7% against AoN's labels, where six other statistics hit 100% | Investigated; it is a property of how AC is authored, not a fitting error | ARCHITECTURE §7.6 |
-| Non-area ability damage is never rescaled | No published table earns it. Area damage *is* offered Table 2-12's figures as an explicit choice | ARCHITECTURE §7.6, §9a |
-| Damage riders are never scaled | 59 of 71 sampled are uncategorised energy dice; easy to change if the decision does | ARCHITECTURE §7.6 |
-| Levels above 24 are refused | GM Core's tables stop at 24; extrapolating would invent numbers with no published basis | ARCHITECTURE §7.6 |
-| Strike damage keeps the chassis's die size | Creature identity over idiomatic dice — and the output shapes are in print | ARCHITECTURE §7.3 |
+Completed work, kept for the reasoning rather than the tick.
+
+### Install 0.1.0 from its manifest URL into a real Foundry
+**Done, 23 Aug.** Installed from the manifest URL and loaded cleanly: the
+`languages` path resolved, the esmodule initialised, the sidebar button opened the
+picker, 1,414 abilities indexed, no console errors. Procedure and the symlink
+hazard are in HANDOFF §6.10 — read it before repeating this.
+
+**Fully closed 23 Aug.** Foundry v14's module tile renders four badges — project
+`url`, author, languages, version — and **no licence badge**. The ⓘ icon is the
+`url` field, not `license`. The `license` field stays in `module.json` because it is
+correct metadata and harmless (of 147 installed modules, 128 omit it entirely and two
+put a licence *name* in it, so Foundry validates nothing), but nobody should expect it
+to appear in the UI. The notice reaches users two other ways regardless: inside
+`module.zip`, and through the ⓘ link to the repository.
+
+### Re-read README against the redistribute-vs-use distinction
+**Done 23 Aug, at `8f5e2d8`.** README's Licence section carried the same false claim
+ARCHITECTURE §7.4 did — that descriptions and artwork "are never copied into module
+output" — plus a stale "attribution notice is not yet verified" release blocker. Both
+corrected, and the redistribute-vs-use split stated explicitly. Also refreshed: the
+baked-in 4,714 corpus figure, the missing `npm run package`, and the claim that all
+probes are pasted into the Foundry console, which stopped being true when
+`read-pack.mjs` landed.
 
 ---
 
 ## Closed — investigated, deliberately not doing
+
+Things we decided against, and why. Reopening one means arguing with the evidence,
+which is the point.
 
 ### AoN as a creature or ability *importer*
 **Closed 23 Aug, measured.** 98.34% of AoN's 4,748 creatures already exist in a
@@ -160,6 +173,42 @@ suggested from frequency or prose-recharge markers where the data supports one.
 
 ---
 
+### Archives of Nethys as *search*
+**Closed 23 Aug — measured, and not worth building.** §7.7 showed 98.34% of AoN's
+creatures already exist locally; §7.9 extends that to abilities and finds Foundry
+holds ~19,886 unique ability names against AoN's 4,281 documents, of which 679 are
+item activation strings rather than abilities at all.
+
+AoN is a smaller and dirtier source than the install it would sit beside. Its
+indispensable role — the `*_scale_number` band labels behind the validation corpus,
+and the GM Core tables — is offline and already built. If search is ever the pain
+point, improving the module's own search is cheaper, works offline, and can see the
+homebrew and module content AoN cannot.
+
+### Sourcemaps
+**Closed 23 Aug — they ship.** They are 424 kB of the 665 kB archive, which looked
+like waste until the install test showed the console reporting frames as
+`creatureator.ts:144` rather than a minified `.js` offset. They buy real stack
+traces against TypeScript source in a user's install, for 130 kB compressed. The
+alternative — dropping the maps while the emitted JS still carries
+`//# sourceMappingURL` — would give every user 404s instead.
+
+---
+
+## Accepted — known behaviour, not defects
+
+| Behaviour | Why it stays | Detail |
+|---|---|---|
+| AC classifies at 86.7% against AoN's labels, where six other statistics hit 100% | Investigated; it is a property of how AC is authored, not a fitting error | ARCHITECTURE §7.6 |
+| Non-area ability damage is never rescaled | No published table earns it. Area damage *is* offered Table 2-12's figures as an explicit choice | ARCHITECTURE §7.6, §9a |
+| Damage riders are never scaled | 59 of 71 sampled are uncategorised energy dice; easy to change if the decision does | ARCHITECTURE §7.6 |
+| Levels above 24 are refused | GM Core's tables stop at 24; extrapolating would invent numbers with no published basis | ARCHITECTURE §7.6 |
+| Strike damage keeps the chassis's die size | Creature identity over idiomatic dice — and the output shapes are in print | ARCHITECTURE §7.3 |
+
+---
+
+---
+
 ## Constraints, not tasks
 
 These shape how work gets done and are not things to fix.
@@ -174,6 +223,8 @@ These shape how work gets done and are not things to fix.
   `npm run check`. HANDOFF §6.9.
 - **Foundry runs as the desktop app**, so `saveDataToFile` and blob downloads do
   not work; probes return data through the clipboard. HANDOFF §6.7.
+
+---
 
 ---
 
