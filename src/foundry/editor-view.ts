@@ -361,25 +361,51 @@ function abilityDamageRow(rowId: string, field: AbilityDamageField): string {
     ? `${sentenceCase(field.damageType)} damage`
     : "Damage";
 
+  const chosen = field.options.find((o) => o.expr === field.expr) ?? null;
+  const suggested = field.suggested
+    ? (field.options.find((o) => o.key === field.suggested) ?? null)
+    : null;
+
+  /**
+   * The placeholder carries the suggestion, and stays disabled.
+   *
+   * A `<select>` showing "Unlimited use — 4d8+3" normally means that value is
+   * in force. Here it would not be: the ability still deals 7d8 until the user
+   * picks. So the suggestion is worded as one and cannot be mistaken for the
+   * current value - which is the whole no-silent-adjustment rule applied to a
+   * dropdown rather than to a number.
+   */
+  const placeholder = chosen
+    ? ""
+    : suggested
+      ? `<option value="" disabled selected>Suggested: ${sentenceCase(
+          suggested.key
+        )} — ${escapeHtml(suggested.expr)} (${suggested.average})</option>`
+      : `<option value="" disabled selected>Table 2-12…</option>`;
+
   const control = field.options.length
-    ? `<select class="ability-damage-area" data-ability="${escapeHtml(rowId)}"
+    ? `<select class="ability-damage-area${suggested && !chosen ? " suggesting" : ""}"
+              data-ability="${escapeHtml(rowId)}"
               data-inline="${field.index}" data-term="${field.termIndex}"
               aria-label="Table 2-12 figure for ${escapeHtml(label)}">
-         ${
-           field.options.some((o) => o.expr === field.expr)
-             ? ""
-             : `<option value="" disabled selected>Table 2-12…</option>`
-         }
+         ${placeholder}
          ${field.options
            .map(
              (o) =>
                `<option value="${escapeHtml(o.expr)}"${
                  o.expr === field.expr ? " selected" : ""
-               }>${sentenceCase(o.key)} — ${escapeHtml(o.expr)} (${o.average})</option>`
+               }>${sentenceCase(o.key)} — ${escapeHtml(o.expr)} (${o.average})${
+                 o.key === field.suggested ? " · suggested" : ""
+               }</option>`
            )
            .join("")}
        </select>`
     : `<span class="band none" title="${escapeHtml(field.note ?? "")}">—</span>`;
+
+  const why =
+    field.suggestion && !chosen
+      ? `<p class="ability-note-line ability-damage-why">${escapeHtml(field.suggestion)}</p>`
+      : "";
 
   return `
     <div class="ability-damage${field.isArea ? " area" : ""}"
@@ -388,6 +414,7 @@ function abilityDamageRow(rowId: string, field: AbilityDamageField): string {
       <span class="ability-damage-label">${escapeHtml(label)}</span>
       <code class="ability-damage-expr">${escapeHtml(field.expr)}</code>
       ${control}
+      ${why}
     </div>`;
 }
 

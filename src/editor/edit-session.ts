@@ -39,6 +39,7 @@ import {
 import {
   graftAbility,
   readAbility,
+  readFrequency,
   type ActionType,
   type AbilityItem,
   type GraftOptions,
@@ -78,6 +79,45 @@ import {
   tableForPath,
   type TableKey,
 } from "../pf2e/paths.js";
+
+/**
+ * Which Table 2-12 column an ability's own Frequency argues for.
+ *
+ * Measured, not reasoned about, and the measurement overturned the obvious
+ * answer. Across 875 area-damage terms harvested from 2,131 published
+ * creatures (`tools/probe-area-frequency.js`, PF2e 8.4.0):
+ *
+ *   - **`per: "round"` means Unlimited Use.** n=129: only 5.4% sit nearer the
+ *     Limited column, *none at all* land exactly on it, and the mean sits 3.5
+ *     below the Unlimited column. A once-per-round limit is a recharge, and
+ *     over an encounter a recharge is at-will - which is what the column means.
+ *   - **`per: "day"` means nothing.** n=32, 37.5% nearer Limited, which is
+ *     *lower* than the 46.6% of abilities carrying no frequency at all. The
+ *     intuitive rule - a once-per-day ability is a limited-use ability - is
+ *     not what Paizo's numbers do. Building it without measuring would have put
+ *     a confidently wrong default on exactly the abilities a GM would most
+ *     expect to be right.
+ *   - **Everything else is too small to speak.** `PT1M` n=8, `PT1H` n=5,
+ *     `PT10M` n=4. The 100% on four rows is not a finding.
+ *   - **80% of area abilities carry no frequency**, and those are a coin flip
+ *     at 46.6%. No default is available for them and none is invented.
+ *
+ * So exactly one rule survives, covering about 15% of area damage. The rest
+ * keeps asking, which is the right answer rather than a missing feature.
+ */
+export function areaColumnFor(
+  frequency: { per: string | null } | null
+): { key: AreaDamageColumn; why: string } | null {
+  if (frequency?.per !== "round") return null;
+  return {
+    key: "unlimited use",
+    why:
+      "Recharges every round, and a recharge is at-will over an encounter. " +
+      "Of 129 published once-per-round area terms, 5.4% sit nearer Limited " +
+      "Use and none land on it exactly - so Unlimited Use is suggested. " +
+      "Nothing is changed until you pick it.",
+  };
+}
 
 export type DefenceKind = "weakness" | "resistance";
 
@@ -194,6 +234,15 @@ export interface AbilityDamageField {
   options: AbilityDamageOption[];
   /** Why there are no options, when there are none. */
   note: string | null;
+  /**
+   * The column the published data supports for this ability, when one is
+   * clearly supported. A suggestion, never an application: the expression is
+   * not touched until the user picks. Null when nothing is suggested, which is
+   * most of the time.
+   */
+  suggested: AreaDamageColumn | null;
+  /** The evidence for `suggested`, in words. Null when there is none. */
+  suggestion: string | null;
 }
 
 export interface EditSection {
@@ -778,6 +827,8 @@ export class EditSession {
    */
   abilityDamage(rowId: string): AbilityDamageField[] {
     const text = this.abilityText(rowId);
+    const item = this.#abilityItem(rowId);
+    const suggestion = item ? areaColumnFor(readFrequency(item)) : null;
     const out: AbilityDamageField[] = [];
 
     findInlines(text).forEach((inline, index) => {
@@ -827,6 +878,9 @@ export class EditSession {
           average: parsed ? averageDamage(parsed) : null,
           options,
           note,
+          // A suggestion is only meaningful where there is something to choose.
+          suggested: options.length ? (suggestion?.key ?? null) : null,
+          suggestion: options.length ? (suggestion?.why ?? null) : null,
         });
       });
     });

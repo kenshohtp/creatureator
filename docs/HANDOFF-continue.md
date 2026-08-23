@@ -69,8 +69,8 @@ is needed. A *server* restart is only needed when adding a new module.
 
 ## 3. Current state
 
-**325 tests passing**, no `describe.todo` left. 14 test files.
-(Sandbox count is 307; the 18 corpus tests in `scale-decode.test.ts` need
+**334 tests passing**, no `describe.todo` left. 14 test files.
+(Sandbox count is 316; the 18 corpus tests in `scale-decode.test.ts` need
 `npm run fetch:corpus`, which is gitignored. Dan's `npm run check` is the gate.)
 
 ### What works, and how it was verified
@@ -506,7 +506,7 @@ In `src/foundry/picker.ts`, wire it in `#activateAbilityForm` alongside the
    reads "Unlimited use — 4d8+3 (18)" for a d8 ability, because that is what
    picking it produces. This is 6.1's dropdown bug, headed off.
 
-### Open question raised by live verification (23 Aug)
+### Frequency as a column signal (23 Aug) - measured and built
 
 **`system.frequency` exists, and §9a assumed it did not.** The spec says which
 Table 2-12 column applies "depends on the ability's **Frequency**, which the
@@ -515,13 +515,18 @@ Dragon Breath on a level 5 NPC carries
 `system.frequency = {value: 0, max: 1, per: "PT1H"}`, and the three abilities
 beside it carry `null`. So the module *can* read it.
 
-That does not change the control - the user should still be able to pick - but
-it may change the **default**. Before defaulting anything,
-`tools/probe-area-frequency.js` measures whether frequency actually predicts the
-column: it cross-tabulates every area-damage term in the bestiary by whether its
-item has a frequency, against how near the term sits to each of Table 2-12's two
-columns. If the gap is large, default and stay overridable; if not, keep asking.
-Printed to the console, no download (6.7).
+**Measured, and answered.** `tools/probe-area-frequency.js` ran over 875 area
+terms on 2,131 creatures. One rule survived: **`per: "round"` means Unlimited
+Use** (5.4% nearer Limited, 0% exact on it, n=129). The rule everyone would
+have guessed - once per day means limited use - **is false**: n=32 at 37.5%
+nearer Limited, *below* the 46.6% for abilities with no frequency at all.
+Everything else is n<10.
+
+Built as a *suggestion*, not a selection: the dropdown shows
+`Suggested: Unlimited use — …` as a disabled placeholder with the evidence under
+it, and the damage is untouched until the user picks. Covers ~15% of area terms;
+the other 85% keep asking. Full numbers and the method caveat in
+ARCHITECTURE.md 7.6.
 
 Also corrected on the way past: the module docstring in `rescale-ability.ts`
 still carried the pre-fix "13.8% exact" figure that ARCHITECTURE §7.6 had

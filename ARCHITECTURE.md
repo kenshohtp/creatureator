@@ -486,6 +486,66 @@ governs ability damage closely enough"; the note on an area one now names Table
 2-12 and says the choice hinges on Frequency. Saying the general sentence about
 an area ability would have been true in letter and misleading in substance.
 
+#### Frequency: the module knew more than it admitted, and less than expected
+
+§9a shipped on the claim that which Table 2-12 column applies "depends on the
+ability's Frequency, which the module does not know". That was wrong twice over,
+and both halves were found by looking rather than reasoning.
+
+**It does know.** `system.frequency` is a structured field, `{value, max, per}`,
+populated on exactly the abilities you would expect. Found on a live sheet: a
+Dragon Breath carrying `{value: 0, max: 1, per: "PT1H"}` while the three
+abilities beside it carried `null`. Read by `readFrequency()` in `pf2e/ability.ts`.
+
+**And knowing it helps far less than it looks.** Measured with
+`tools/probe-area-frequency.js` across **875 area-damage terms from 631
+abilities on 2,131 creatures** (PF2e 8.4.0), each term compared against both
+Table 2-12 columns at its creature's level:
+
+| `per` | n | nearer Limited | exact Unlimited | exact Limited | mean off Unl. | mean off Lim. |
+|---|---|---|---|---|---|---|
+| *(no frequency)* | 697 | 46.6% | 4.7% | 10.3% | +8.0 | −13.4 |
+| `round` | 129 | **5.4%** | 14.7% | **0.0%** | −3.5 | −19.9 |
+| `day` | 32 | 37.5% | 6.3% | 6.3% | +7.3 | −15.4 |
+| `PT1M` | 8 | 50.0% | 0.0% | 25.0% | +5.6 | −4.4 |
+| `PT1H` | 5 | 40.0% | 0.0% | 0.0% | +1.0 | −6.4 |
+| `PT10M` | 4 | 100.0% | 0.0% | 0.0% | +23.9 | −0.4 |
+
+Three readings, in order of how much they cost to learn:
+
+1. **`per: "round"` means Unlimited Use, decisively.** 5.4% nearer the Limited
+   column and *not one of the 129* lands on it exactly. A once-per-round limit
+   is a recharge, and a recharge is at-will across an encounter — which is what
+   the column describes. This is the one rule implemented (`areaColumnFor()`).
+2. **`per: "day"` does not mean Limited Use.** This was the hypothesis, and it
+   is not merely weak but pointed the wrong way: 37.5% nearer Limited is *below*
+   the 46.6% of abilities carrying no frequency at all. Shipping the intuitive
+   rule would have put a confidently wrong default on precisely the abilities a
+   GM would most expect to be right. Recorded so nobody re-derives it.
+3. **The rest cannot speak.** n=8, 5 and 4. The 100% on `PT10M` is four rows.
+
+Coverage of the surviving rule is **129 of 875 terms, about 15%**. The other
+85% keep asking, which is the answer rather than a gap.
+
+**A suggestion is not a selection.** The dropdown shows
+`Suggested: Unlimited use — 2d8+3 (12)` as a *disabled* placeholder and marks
+the matching option `· suggested`; the damage is not rewritten until the user
+picks, and the reason sits under the field. A `<select>` displaying a value
+normally means that value is in force, and here it is not — this is the
+no-silent-adjustment rule applied to a control rather than to a number.
+
+**Method note, and a caveat on comparing this to the table above at 7.6.** This
+harvest counts **one row per damage term**, so every small rider inside a
+multi-term element is its own row and sits far from both columns. The earlier
+30.5% figure counts per ability against the nearest column. The two are not
+comparable, and the per-term exactness figures here (6.2% / 8.7% overall) should
+not be read as contradicting it. Per-term is the right unit for "what figure
+should *this* term get" and the wrong one for "does Table 2-12 govern this
+ability". Worth resolving if anyone acts on the Limited column again: `off-lim`
+is negative in every single group, which *may* mean that column is a ceiling
+Paizo rarely writes to rather than a target — but that claim needs the
+per-ability measurement before anyone believes it.
+
 Method note: this is the second time a measurement has been quietly running on a
 fraction of its data (the first was the classifier's nearest-match at 86%). Both
 were caught by looking at the counts rather than the percentages. Probes should

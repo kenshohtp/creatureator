@@ -24,7 +24,7 @@ import {
   renderAbilities,
   renderAbilityPanel,
 } from "../src/foundry/editor-view.js";
-import { EditSession } from "../src/editor/edit-session.js";
+import { areaColumnFor, EditSession } from "../src/editor/edit-session.js";
 import { rescaleCreature } from "../src/scaling/rescale-creature.js";
 import type { NPCSource } from "../src/pf2e/npc.js";
 
@@ -527,6 +527,105 @@ describe("area damage", () => {
     expect(html).toContain("Unlimited use — 2d8+3 (12)");
     expect(html).toContain("Limited use — 4d8+3 (21)");
     expect(html).toContain("Poison damage");
+  });
+
+  /**
+   * The frequency rule, and the rule that was expected and did not survive.
+   *
+   * Measured across 875 area terms on 2,131 published creatures. `round` is
+   * decisive (5.4% nearer Limited, 0% exact on it); `day` is not (37.5% nearer
+   * Limited, *below* the 46.6% of abilities with no frequency at all). The
+   * second of those is the one worth a test: it is the rule anyone would write
+   * from intuition, and Paizo's numbers do not support it.
+   */
+  describe("what an ability's Frequency argues for", () => {
+    it("reads a once-per-round recharge as unlimited use", () => {
+      expect(areaColumnFor({ per: "round" })?.key).toBe("unlimited use");
+    });
+
+    it("declines to read once-per-day as limited use", () => {
+      expect(areaColumnFor({ per: "day" })).toBeNull();
+    });
+
+    it("declines on the clock-based limits, which are too rare to call", () => {
+      expect(areaColumnFor({ per: "PT1H" })).toBeNull();
+      expect(areaColumnFor({ per: "PT10M" })).toBeNull();
+    });
+
+    it("declines when there is no frequency at all", () => {
+      expect(areaColumnFor(null)).toBeNull();
+      expect(areaColumnFor({ per: null })).toBeNull();
+    });
+  });
+
+  describe("suggesting a column from Frequency", () => {
+    const grafted = (per: string | null) => {
+      const s = new EditSession(src, rescaleCreature(src, 5));
+      const index = s.graftedCount;
+      s.graft(
+        {
+          name: "Spore Burst",
+          type: "action",
+          system: {
+            actionType: { value: "action" },
+            actions: { value: 2 },
+            traits: { value: [] },
+            description: { value: "<p>@Damage[7d8[poison]|options:area-damage]</p>" },
+            ...(per === null ? {} : { frequency: { value: 0, max: 1, per } }),
+          },
+        },
+        { fromLevel: 5 }
+      );
+      return { s, id: `graft:${index}` };
+    };
+
+    it("suggests unlimited use for a once-per-round ability, with the evidence", () => {
+      const { s, id } = grafted("round");
+      const field = s.abilityDamage(id)[0]!;
+
+      expect(field.suggested).toBe("unlimited use");
+      expect(field.suggestion).toContain("Recharges every round");
+      expect(field.suggestion).toContain("Nothing is changed until you pick it");
+    });
+
+    it("suggests nothing for once-per-day, or for no frequency", () => {
+      expect(grafted("day").s.abilityDamage("graft:0")[0]!.suggested).toBeNull();
+      expect(grafted(null).s.abilityDamage("graft:0")[0]!.suggested).toBeNull();
+    });
+
+    /**
+     * The point of the whole no-silent-adjustment rule, applied to a dropdown:
+     * a suggestion that looked like a selection would be claiming the damage
+     * had changed when it had not.
+     */
+    it("does not touch the damage it suggests a figure for", () => {
+      const { s, id } = grafted("round");
+      expect(s.abilityDamage(id)[0]!.expr).toBe("7d8");
+      expect(s.abilityText(id)).toContain("@Damage[7d8[poison]|options:area-damage]");
+    });
+
+    it("renders the suggestion as a suggestion, not as the current value", () => {
+      const { s, id } = grafted("round");
+      const html = renderAbilities(s, { ...EMPTY_ABILITY_PANEL }, id);
+
+      expect(html).toContain("Suggested: Unlimited use — 2d8+3 (12)");
+      expect(html).toContain("· suggested");
+      expect(html).toContain("suggesting");
+      expect(html).toContain("Recharges every round");
+      // The real option is still there to be chosen, unselected.
+      expect(html).toContain(">Unlimited use — 2d8+3 (12) · suggested</option>");
+    });
+
+    it("drops the suggestion once a figure has actually been picked", () => {
+      const { s, id } = grafted("round");
+      const option = s.abilityDamage(id)[0]!.options[0]!;
+      expect(s.setAbilityDamage(id, 0, 0, option.expr)).toBe(true);
+
+      const html = renderAbilities(s, { ...EMPTY_ABILITY_PANEL }, id);
+      expect(html).not.toContain("Suggested:");
+      expect(html).not.toContain("Recharges every round");
+      expect(s.abilityText(id)).toContain("@Damage[2d8+3[poison]|options:area-damage]");
+    });
   });
 
   it("tells an area ability that a table applies, and other damage that none does", () => {

@@ -829,6 +829,18 @@
 
 .creatureator select.ability-damage-area { width: auto; font-size: 0.78rem; }
 
+/* A suggestion is not a value: it reads differently until the user commits. */
+.creatureator select.ability-damage-area.suggesting { font-style: italic; opacity: 0.85; }
+
+.creatureator .ability-damage { flex-wrap: wrap; }
+
+.creatureator .ability-damage-why {
+  flex-basis: 100%;
+  margin: 0.1rem 0 0;
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
 .creatureator .ability-actions-row {
   display: flex;
   justify-content: flex-start;

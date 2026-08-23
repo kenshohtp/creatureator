@@ -68,6 +68,35 @@ export function readAbility(item: Record<string, any>): AbilityItem {
   };
 }
 
+/**
+ * How often an ability can be used, when PF2e records it.
+ *
+ * `system.frequency` is a real structured field — `{value, max, per}` — not
+ * prose, and it is populated on exactly the abilities you would expect: a
+ * Dragon Breath with "once per hour" carries `{value: 0, max: 1, per: "PT1H"}`
+ * while the passives beside it carry nothing at all. `per` is an ISO 8601
+ * duration ("PT1H", "PT10M") for clock-based limits and a bare word ("round",
+ * "day") otherwise.
+ *
+ * This is read rather than assumed because §9a shipped on the claim that a PF2e
+ * action item does not record its frequency. It does.
+ */
+export interface AbilityFrequency {
+  /** Uses per period. */
+  max: number | null;
+  /** "round", "day", "PT1H"... null when the field is malformed. */
+  per: string | null;
+}
+
+export function readFrequency(item: Record<string, any>): AbilityFrequency | null {
+  const raw = item["system"]?.frequency;
+  if (!raw || typeof raw !== "object") return null;
+  return {
+    max: typeof raw.max === "number" ? raw.max : null,
+    per: typeof raw.per === "string" ? raw.per : null,
+  };
+}
+
 /** "⬻⬻", "reaction", "free action", "passive" — how the cost reads on a sheet. */
 export function actionCostLabel(ability: AbilityItem): string {
   switch (ability.actionType) {
